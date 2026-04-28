@@ -1,0 +1,134 @@
+import os
+import time
+import requests
+import pandas as pd
+from datetime import datetime, timezone
+from Service import AirService
+from dotenv import load_dotenv
+
+
+load_dotenv()
+OWM_KEY = os.getenv("OPENAIR_API_KEY")
+instance = AirService()
+
+DAYS_TO_HARVEST = 20
+end_ts = int(time.time())
+start_ts = end_ts - (DAYS_TO_HARVEST * 24 * 3600) 
+
+# Open-Meteo needs YYYY-MM-DD strings
+start_date_str = datetime.fromtimestamp(start_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+end_date_str = datetime.fromtimestamp(end_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+
+ncr_cities = [
+    "Caloocan", "Las Piñas", "Makati City", "Malabon City",
+    "Mandaluyong City", "Manila", "Marikina City", "Muntinlupa City",
+    "Navotas City", "Parañaque City", "Pasay City", "Pasig City",
+    "Quezon City", "San Juan City", "Taguig City", "Valenzuela City"
+]
+
+def get_pollution_history(lat, lon, start, end):
+    url = f"http://api.openweathermap.org/data/2.5/air_pollution/history?lat={lat}&lon={lon}&start={start}&end={end}&appid={OWM_KEY}"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json().get('list', [])
+    except Exception as e:
+        print(f"Pollution API Error: {e}")
+        return []
+
+def get_weather_history(lat, lon, start_date, end_date):
+    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json().get('hourly', {})
+        
+        weather_list = []
+        for i in range(len(data.get('time', []))):
+            weather_list.append({
+                'dt': int(datetime.fromisoformat(data['time'][i]).replace(tzinfo=timezone.utc).timestamp()),
+                'temp': data['temperature_2m'][i],
+                'humidity': data['relative_humidity_2m'][i],
+                'wind_speed': data['wind_speed_10m'][i]
+            })
+        return weather_list
+    except Exception as e:
+        print(f"Weather API Error: {e}")
+        return []
+    
+# def seed_pollution_data():
+    
+#     if not os.path.exists("training_data.csv"):
+#         return
+
+#     print("Seeding into pollution_data.csv...")
+#     df = pd.read_csv("training_data.csv") 
+
+#     df['timestamp'] = df['dt'].apply(
+#         lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d %H:%M:%S')
+#     )
+
+#     app_columns = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10']
+    
+#     existing_cols = [c for c in app_columns if c in df.columns]
+#     final_df = df[existing_cols]
+    
+#     final_df.to_csv("pollution_data.csv", index=False)
+#     print(f"pollution_data.csv updated")
+        
+def harvest():
+    final_data = []
+
+    for city in ncr_cities:
+        print(f"📡 Harvesting {city}...", end=" ", flush=True)
+        lat, lon, official_name = instance.get_coords(city)
+        
+        if lat:
+            pollution = get_pollution_history(lat, lon, start_ts, end_ts)
+            weather = get_weather_history(lat, lon, start_date_str, end_date_str)
+            
+            weather_dict = {w['dt']: w for w in weather}
+            city_count = 0
+            
+            for p in pollution:
+                ts = p['dt']
+                # Round to the start of the hour
+                closest_hour = (ts // 3600) * 3600 
+                w_info = weather_dict.get(closest_hour)
+                
+                if w_info:
+                    final_data.append({
+                       'city': official_name,
+                        'dt': ts,
+                        'aqi': p['main'].get('aqi'),
+                        'pm2_5': p['components'].get('pm2_5'),
+                        'pm10': p['components'].get('pm10'),
+                        'temp': w_info['temp'],
+                        'humidity': w_info['humidity'],
+                        'wind_speed': w_info['wind_speed']
+                    })
+                    city_count += 1
+            
+            print(f"✅ {city_count} records.")
+        
+        time.sleep(1.2) 
+
+    if final_data:
+        df = pd.DataFrame(final_data)
+        df = df.sort_values(['city', 'dt'])
+        df.to_csv("training_data.csv", index=False)
+        
+        print(f"\n✨ Success! {len(df)} total records saved to training_data.csv")
+        
+        #seed_pollution_data()
+    else:
+        print("\nNo data collected. Check API keys and internet connection.")
+        
+    if not os.path.exists("training_data.csv"):
+        print("Error: training_data.csv not found.")
+        return
+
+    
+    
+if __name__ == "__main__":
+    harvest()

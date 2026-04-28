@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NCR Air Quality Dashboard</title>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1 style="color: #2c3e50; margin-top: 0;">Air Quality Command Center</h1>
+        <form method="POST" action="/">
+            <label for="city_selection"><strong>Select Location:</strong></label>
+            <select name="city_selection" id="city_selection" style="padding: 8px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc;">
+                {% for city in cities %}
+                    <option value="{{ city }}" {% if city == selected_city %}selected{% endif %}>
+                        {{ city }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit" style="padding: 8px 16px; background-color: #343a40; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">Pull Latest Data</button>
+        </form>
+    </div>
+
+    {% if current %}
+    
+    <div class="tab-container">
+        <button class="tab-btn active" onclick="switchTab('current-section', this)">Current</button>
+        <button class="tab-btn" onclick="switchTab('predict-section', this)">Predictive</button>
+    </div>
+
+    <div id="current-section" class="tab-content active card" style="border-top: 5px solid #17a2b8;">
+        <h2 class="section-title">Live Atmospheric Conditions: {{ selected_city }}</h2>
+        
+        <div class="current-weather-banner">
+            
+            <div class="weather-stats-group">
+                <div><strong>Temperature:</strong> {{ current.temp }}°C</div>
+                <div><strong>Humidity:</strong> {{ current.humidity }}%</div>
+                <div><strong>Wind Speed:</strong> {{ current.wind_speed }} m/s</div>
+            </div>
+
+            {% set aqi_colors = {1: '#28a745', 2: '#ffc107', 3: '#fd7e14', 4: '#dc3545', 5: '#6f42c1'} %}
+            {% set aqi_color = aqi_colors.get(current.aqi, '#6c757d') %}
+            
+            <div class="aqi-badge" style="border-left: 8px solid {{ aqi_color }};">
+                <div class="aqi-title">Overall AQI</div>
+                <div class="aqi-number" style="color: {{ aqi_color }};">{{ current.aqi }}<span class="aqi-scale">/5</span></div>
+            </div>
+            
+        </div>
+        
+        <h3 style="margin-bottom: 10px;">Pollutant Breakdown & Health Impact</h3>
+        <div class="info-grid">
+            
+            <div class="info-card">
+                <h4>PM2.5 <span class="val-badge">{{ current.components.pm2_5 }} µg/m³</span></h4>
+                <p><strong>Fine Particulate Matter.</strong>Placeholder</p>
+            </div>
+
+            <div class="info-card">
+                <h4>PM10 <span class="val-badge">{{ current.components.pm10 }} µg/m³</span></h4>
+                <p><strong>Coarse Particulate Matter.</strong> Placeholder</p>
+            </div>
+
+            <div class="info-card">
+                <h4>NO2 <span class="val-badge">{{ current.components.no2 }} µg/m³</span></h4>
+                <p><strong>Nitrogen Dioxide.</strong> Placeholder</p>
+            </div>
+
+            <div class="info-card">
+                <h4>O3 <span class="val-badge">{{ current.components.o3 }} µg/m³</span></h4>
+                <p><strong>Ground-Level Ozone.</strong> Placeholder</p>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="predict-section" class="tab-content card" style="border-top: 5px solid #28a745;">
+        <h2 class="section-title">24-Hour Forward Forecast</h2>
+        
+        <button class="btn-predict" onclick="fetchPrediction('{{ selected_city }}')">Run XGBoost Engine</button>
+        
+        <div id="loading">⚙️ Crunching weather vectors and historical lags...</div>
+
+        <div id="prediction-results" style="display: none; text-align: center;">
+            <h4 style="margin: 0; color: #666; text-transform: uppercase; letter-spacing: 1px;">Next Hour Expected PM2.5</h4>
+            <h1 id="next-hour-val" style="margin: 10px 0; font-size: 4em; color: #28a745;">-- <span style="font-size: 0.3em; color: #333;">µg/m³</span></h1>
+            
+            <div style="height: 400px; width: 100%; margin-top: 30px;">
+                <canvas id="predictionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- TAB SWITCHING LOGIC ---
+        function switchTab(tabId, btn) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        // --- ML PREDICTION LOGIC ---
+        let predictionChartInstance = null;
+
+        function fetchPrediction(cityName) {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('prediction-results').style.display = 'none';
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ city: cityName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('prediction-results').style.display = 'block';
+                
+                document.getElementById('next-hour-val').innerHTML = `${data.prediction} <span style="font-size: 0.3em; color: #333;">µg/m³</span>`;
+
+                const ctx = document.getElementById('predictionChart').getContext('2d');
+                
+                if (predictionChartInstance) { predictionChartInstance.destroy(); }
+
+                predictionChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.chart_data.labels,
+                        datasets: [{
+                            label: 'Predicted PM2.5',
+                            data: data.chart_data.pm25,
+                            borderColor: '#28a745', 
+                            backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                            fill: true,
+                            tension: 0.4, 
+                            borderWidth: 3,
+                            pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            x: { 
+                                type: 'time', 
+                                time: { unit: 'hour', tooltipFormat: 'MMM d, h:mm a' },
+                                grid: { display: false }
+                            }, 
+                            y: { 
+                                beginAtZero: true,
+                                title: { display: true, text: 'PM2.5 (µg/m³)' }
+                            } 
+                        },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                alert("Error running prediction. Make sure your Flask backend is running and model.pkl is present.");
+                console.error('Error:', error);
+            });
+        }
+    </script>
+    {% endif %}
+
+</body>
+</html>

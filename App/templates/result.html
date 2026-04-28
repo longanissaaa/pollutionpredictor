@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Prediction - {{ city }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+
+    <h1>XGBoost Forecast for {{ city }}</h1>
+    
+    <section>
+        <h2>Next Hour Expected:</h2>
+        <p style="font-size: 24px; color: #d9534f;"><strong>{{ prediction }} µg/m³ PM2.5</strong></p>
+        <p>Current Temperature Baseline: {{ current_temp }}°C</p>
+    </section>
+
+    <div class="chart-container" style="height: 400px; width: 100%; margin-top: 20px;">
+        <h3>24-Hour AI Prediction Timeline</h3>
+        <canvas id="predictionChart"></canvas>
+    </div>
+
+    <br>
+    <a href="/"><button>← Back to Current Data</button></a>
+
+    <script>
+        const rawJson = '{{ forecast_json | safe }}';
+        const chartData = JSON.parse(rawJson);
+
+        if (chartData && chartData.labels && chartData.labels.length > 0) {
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartData.labels,
+                    datasets: [{
+                        label: 'Predicted PM2.5',
+                        data: chartData.pm25,
+                        borderColor: 'rgb(255, 159, 64)', // Orange for ML predictions
+                        backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { 
+                            type: 'time', 
+                            time: { unit: 'hour' } 
+                        },
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: 'PM2.5 (µg/m³)' }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
