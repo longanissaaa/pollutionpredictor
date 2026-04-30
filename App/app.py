@@ -15,11 +15,14 @@ instance = AirService()
 
 app = Flask(__name__)
 
+
+
 # ==========================================
 # ROUTE 1: The Dashboard (Current Data)
 # ==========================================
 @app.route("/", methods=["GET", "POST"])
 def home():
+    current_time = datetime.now().strftime("%I:%M %p")
     ncr_cities = [
         "Caloocan", "Las Piñas", "Makati City", "Malabon City", "Mandaluyong City", 
         "Manila", "Marikina City", "Muntinlupa City", "Navotas City", "Parañaque City", 
@@ -43,6 +46,7 @@ def home():
                 weather_stats['components'] = pollution_info['components'] 
                 
             current_weather = weather_stats
+            weather_stats['timestamp'] = current_time
             current_weather['city'] = official_name
 
             if raw_pollution and 'list' in raw_pollution:
@@ -51,7 +55,7 @@ def home():
     return render_template("index.html", 
                            cities=ncr_cities, 
                            current=current_weather, 
-                           selected_city=selected_city)
+                           selected_city=selected_city,current_time = current_time)
 
 # ==========================================
 # ROUTE 2: The Prediction (Historical Data)
@@ -101,7 +105,9 @@ def predict():
                 'timestamp': local_time,
                 'temp': item['temp'],              
                 'humidity': item['humidity'],      
-                'wind_speed': item['wind_speed']   
+                'wind_speed': item['wind_speed'],
+                'precipitation': item.get('precipitation', 0),
+                'wind_direction': item.get('wind_direction', 0)   
             })
             if len(weather_rows) == 24: 
                 break
@@ -119,6 +125,9 @@ def predict():
             'temp': weather_row['temp'],
             'humidity': weather_row['humidity'],
             'wind_speed': weather_row['wind_speed'],
+            'precipitation': weather_row['precipitation'],
+            "wind_direction" : weather_row["wind_direction"],
+            'month': weather_row['timestamp'].month,
             'hour': weather_row['timestamp'].hour,
             'day_of_week': weather_row['timestamp'].dayofweek,
             'pm25_lag_24': lag_24_value,

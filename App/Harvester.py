@@ -11,13 +11,8 @@ load_dotenv()
 OWM_KEY = os.getenv("OPENAIR_API_KEY")
 instance = AirService()
 
-DAYS_TO_HARVEST = 20
-end_ts = int(time.time())
-start_ts = end_ts - (DAYS_TO_HARVEST * 24 * 3600) 
-
-# Open-Meteo needs YYYY-MM-DD strings
-start_date_str = datetime.fromtimestamp(start_ts, tz=timezone.utc).strftime('%Y-%m-%d')
-end_date_str = datetime.fromtimestamp(end_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+DAYS_TO_HARVEST = 730
+CHUNK_SIZE_DAYS = 30
 
 ncr_cities = [
     "Caloocan", "Las Piñas", "Makati City", "Malabon City",
@@ -37,7 +32,7 @@ def get_pollution_history(lat, lon, start, end):
         return []
 
 def get_weather_history(lat, lon, start_date, end_date):
-    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT"
+    url = f"https://archive-api.open-meteo.com/v1/archive?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,wind_direction_10m&timezone=GMT"
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -49,7 +44,9 @@ def get_weather_history(lat, lon, start_date, end_date):
                 'dt': int(datetime.fromisoformat(data['time'][i]).replace(tzinfo=timezone.utc).timestamp()),
                 'temp': data['temperature_2m'][i],
                 'humidity': data['relative_humidity_2m'][i],
-                'wind_speed': data['wind_speed_10m'][i]
+                'wind_speed': data['wind_speed_10m'][i],
+                'precipitation': data['precipitation'][i],
+                'wind_direction': data['wind_direction_10m'][i]
             })
         return weather_list
     except Exception as e:
@@ -78,21 +75,34 @@ def get_weather_history(lat, lon, start_date, end_date):
         
 def harvest():
     final_data = []
+    end_ts = int(time.time())
+    start_ts = end_ts - (DAYS_TO_HARVEST * 24 * 3600) 
 
     for city in ncr_cities:
         print(f"📡 Harvesting {city}...", end=" ", flush=True)
         lat, lon, official_name = instance.get_coords(city)
         
-        if lat:
-            pollution = get_pollution_history(lat, lon, start_ts, end_ts)
+        if not lat:
+            continue
+            
+        city_count = 0
+        
+        for chunk_start in range(start_ts, end_ts, CHUNK_SIZE_DAYS * 24 * 3600):
+            chunk_end = min(chunk_start + (CHUNK_SIZE_DAYS * 24 * 3600), end_ts)
+            
+            start_date_str = datetime.fromtimestamp(chunk_start, tz=timezone.utc).strftime('%Y-%m-%d')
+            end_date_str = datetime.fromtimestamp(chunk_end, tz=timezone.utc).strftime('%Y-%m-%d')
+            
+            print(f"  -> Pulling {start_date_str} to {end_date_str}...", end=" ", flush=True)
+            
+            pollution = get_pollution_history(lat, lon, chunk_start, chunk_end)
             weather = get_weather_history(lat, lon, start_date_str, end_date_str)
             
             weather_dict = {w['dt']: w for w in weather}
-            city_count = 0
+            chunk_count = 0
             
             for p in pollution:
                 ts = p['dt']
-                # Round to the start of the hour
                 closest_hour = (ts // 3600) * 3600 
                 w_info = weather_dict.get(closest_hour)
                 
@@ -105,30 +115,26 @@ def harvest():
                         'pm10': p['components'].get('pm10'),
                         'temp': w_info['temp'],
                         'humidity': w_info['humidity'],
-                        'wind_speed': w_info['wind_speed']
+                        'wind_speed': w_info['wind_speed'],
+                        'precipitation': w_info['precipitation'],
+                        'wind_direction' : w_info["wind_direction"]
                     })
+                    
+                    chunk_count += 1
                     city_count += 1
             
-            print(f"✅ {city_count} records.")
-        
-        time.sleep(1.2) 
+            print(f"Got {chunk_count} rows.")
+            time.sleep(1.5)
+            
+        print(f"✅ Finished {city}: {city_count} total records.")
 
     if final_data:
         df = pd.DataFrame(final_data)
         df = df.sort_values(['city', 'dt'])
         df.to_csv("training_data.csv", index=False)
-        
         print(f"\n✨ Success! {len(df)} total records saved to training_data.csv")
-        
-        #seed_pollution_data()
     else:
-        print("\nNo data collected. Check API keys and internet connection.")
-        
-    if not os.path.exists("training_data.csv"):
-        print("Error: training_data.csv not found.")
-        return
+        print("\nNo data collected.")
 
-    
-    
 if __name__ == "__main__":
     harvest()
