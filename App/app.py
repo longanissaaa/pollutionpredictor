@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, render_template, request, jsonify # <-- Added jsonify
+from flask import Flask, render_template, request, jsonify 
 from datetime import datetime, timezone
 import json
 import joblib
@@ -44,6 +44,37 @@ def home():
                 pollution_info = raw_pollution['list'][0]
                 weather_stats['aqi'] = pollution_info['main']['aqi']
                 weather_stats['components'] = pollution_info['components'] 
+                components = pollution_info['components']
+                current_aqi = pollution_info['main']['aqi']
+                
+                thresholds = {'pm2_5': 25, 'pm10': 50, 'no2': 25, 'o3': 100}
+                
+                worst_key = max(['pm2_5', 'pm10', 'no2', 'o3'], 
+                                key=lambda k: components.get(k, 0) / thresholds[k])
+                
+                names = {'pm2_5': 'PM2.5', 'pm10': 'PM10', 'no2': 'NO₂', 'o3': 'O₃'}
+                weather_stats['primary_pollutant'] = names[worst_key]
+                
+                trend = "stable"
+                trend_icon = "→"
+                try:
+                    df = pd.read_csv("pollution_data.csv")
+                    city_history = df[df['city'] == official_name].sort_values('timestamp', ascending=False)
+                    
+                    if not city_history.empty:
+                        last_hour_aqi = int(city_history.iloc[0]['aqi'])
+                        
+                        if current_aqi < last_hour_aqi:
+                            trend = "improving"
+                            trend_icon = "↓"
+                        elif current_aqi > last_hour_aqi:
+                            trend = "worsening"
+                            trend_icon = "↑"
+                except Exception as e:
+                    print(f"Trend error: {e}")
+                
+                weather_stats['trend'] = trend
+                weather_stats['trend_icon'] = trend_icon
                 
             current_weather = weather_stats
             weather_stats['timestamp'] = current_time
