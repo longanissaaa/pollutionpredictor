@@ -85,7 +85,7 @@ class AirService:
         file_path = "pollution_data.csv"
         file_exist = os.path.isfile(file_path)
         
-        fieldnames = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10', 'temp', 'humidity', 'wind_speed']
+        fieldnames = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10', 'temp', 'humidity', 'wind_speed',"no2","o3"]
 
         with open(file_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -104,6 +104,8 @@ class AirService:
                     'pm10': p['components'].get('pm10'),
                     'temp': weather_stats.get('temp') if weather_stats else None,
                     'humidity': weather_stats.get('humidity') if weather_stats else None,
-                    'wind_speed': weather_stats.get('wind_speed') if weather_stats else None
+                    'wind_speed': weather_stats.get('wind_speed') if weather_stats else None,
+                    'no2': p['components'].get('no2'),
+                    'o3': p['components'].get('o3'),
                 }
                 writer.writerow(row)
