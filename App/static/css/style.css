@@ -1,6 +1,10 @@
+/* =========================================
+   BASE STYLES & CONTAINERS
+   ========================================= */
 body { 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-    margin: 20px; 
+    margin: 10px; 
+    background-color: #f4f7f6;
 }
 
 .header-container { 
@@ -16,8 +20,7 @@ body {
     background: white; 
     border-radius: 8px; 
     padding: 30px; 
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-    margin-top: 10px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
 }
 
 .section-title { 
@@ -27,7 +30,71 @@ body {
     margin-top: 0; 
 }
 
-/* --- TABS CSS --- */
+/* =========================================
+   SPA MASTER-DETAIL LAYOUT (MAP + DATA)
+   ========================================= */
+.spa-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.map-column {
+    flex: 0 0 35%; /* Map takes 35% of the screen */
+    position: sticky;
+    top: 20px;
+}
+
+.data-column {
+    flex: 1; /* Dashboard takes the remaining 65% */
+}
+
+#pollution-map {
+    height: 700px;
+    width: 100%;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border: 2px solid #fff;
+    z-index: 1;
+}
+
+/* Mobile adjustments */
+@media (max-width: 900px) {
+    .spa-layout { flex-direction: column; }
+    .map-column { width: 100%; position: static; }
+    #pollution-map { height: 400px; margin-bottom: 20px; }
+}
+
+/* =========================================
+   FULL SCREEN APP LOADER
+   ========================================= */
+#app-loader {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: #2c3e50;
+    font-weight: bold;
+}
+
+.spinner {
+    width: 50px; height: 50px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #007bff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* =========================================
+   TABS CSS
+   ========================================= */
 .tab-container { 
     display: flex; 
     justify-content: center; 
@@ -56,24 +123,44 @@ body {
     box-shadow: 0 4px 8px rgba(0,123,255,0.3); 
 }
 
-/* Hide sections by default, show when active */
 .tab-content { 
     display: none; 
     animation: fadeIn 0.4s; 
 }
-
 .tab-content.active { display: block; }
-
 @keyframes fadeIn { 
     from { opacity: 0; transform: translateY(10px); } 
     to { opacity: 1; transform: translateY(0); } 
 }
 
-/* --- POLLUTANT INFO CARDS CSS --- */
+/* =========================================
+   WEATHER BANNER & POLLUTANT CARDS
+   ========================================= */
+.current-weather-banner {
+    display: flex;
+    flex-direction: column;
+    background: #e9ecef;
+    padding: 20px 30px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+}
+
+.weather-stats-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    font-size: 1.1em;
+    color: #495057;
+
+    width: calc(100% + 40px); /* Forces the banner to be wider than its box */
+    margin-right: -40px;      /* Pulls the extra width to the right side */
+    padding-right: 50px;
+}
+
 .info-grid { 
     display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-    gap: 20px; 
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+    gap: 15px; 
     margin-top: 20px; 
 }
 
@@ -81,7 +168,9 @@ body {
     background: #f8f9fa; 
     border-left: 5px solid #17a2b8; 
     padding: 15px; 
-    border-radius: 4px; 
+    border-radius: 8px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    
 }
 
 .info-card h4 { 
@@ -89,173 +178,115 @@ body {
     color: #17a2b8; 
     display: flex; 
     justify-content: space-between; 
+    align-items: center;
 }
 
-.info-card p { 
-    margin: 0; 
-    font-size: 0.9em; 
-    line-height: 1.4; 
-    color: #555; 
+.info-card p { margin: 0; font-size: 0.85em; line-height: 1.4; color: #555; }
+.val-badge { background: #343a40; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.85em; }
+
+/* =========================================
+   AQI GRADIENT SCALE (THE TRACKER)
+   ========================================= */
+.aqi-scale-wrapper {
+    width: 100%;
+    margin-top: 15px;
+    padding-top: 20px;
+    border-top: 1px solid #dee2e6;
 }
 
-.val-badge { 
-    background: #343a40; 
-    color: white; 
-    padding: 2px 8px; 
-    border-radius: 12px; 
-    font-size: 0.9em; 
-}
-
-.health-card {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 24px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-    max-width: 500px; /* Adjust based on your layout */
-}
-
-.health-title {
-    font-size: 18px;
+.aqi-scale-title {
+    font-size: 0.8em;
     font-weight: 700;
-    color: #000;
-    margin-bottom: 20px;
+    color: #6c757d;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    letter-spacing: 0.5px;
 }
 
-.rec-list {
+.aqi-gradient-track {
+    height: 12px;
+    width: 100%;
+    border-radius: 10px;
+    background: linear-gradient(to right, #28a745 0% 20%, #ffc107 20% 40%, #fd7e14 40% 60%, #dc3545 60% 80%, #6f42c1 80% 100%);
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.aqi-marker {
+    position: absolute;
+    top: -6px;
+    width: 4px;
+    height: 24px;
+    background-color: #ccc;
+    border-radius: 2px;
+    box-shadow: 0 0 0 2px white;
+    transition: left 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.5s ease;
+    transform: translateX(-50%);
+
+    
+}
+
+.aqi-marker::before {
+    content: '▼'; position: absolute; top: -16px; left: -4px; font-size: 12px; color: #2c3e50;
+}
+
+.aqi-labels { display: flex; width: 100%; margin-top: 8px; }
+.aqi-labels span { flex: 1; text-align: center; font-size: 0.75em; color: #6c757d; font-weight: 600; }
+
+/* =========================================
+   HEALTH RECOMMENDATIONS LIST
+   ========================================= */
+.recommendation-list-container {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    margin-top: 20px;
 }
 
-.rec-row {
+.rec-list-item {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 16px;
+    background: #ffffff;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.rec-icon-box {
-    width: 58px;
-    height: 58px;
-    flex: none;
+.rec-list-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+}
+
+.rec-icon-box-sq {
+    width: 58px; height: 58px;
+    flex: none;           
     border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    /* The icon box background will be dynamic */
+    display: flex; align-items: center; justify-content: center;
+    margin-right: 16px;
+    transition: background-color 0.3s ease;
 }
 
-.rec-icon-box span {
-    font-size: 30px;
-}
+.rec-text-column { display: flex; flex-direction: column; gap: 4px; }
+.rec-main-text { margin: 0; font-size: 15px; font-weight: 500; color: #4b5563; line-height: 1.4; }
+.rec-sub-link { font-size: 13px; color: #3b82f6; text-decoration: none; font-weight: 600; }
+.rec-sub-link:hover { text-decoration: underline; }
 
-.rec-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.rec-text {
-    margin: 0;
-    font-size: 15px;
-    color: #374151;
-    line-height: 1.4;
-}
-
-.rec-link {
-    font-size: 13px;
-    color: #3b82f6;
-    text-decoration: none;
-    font-weight: 500;
-}
-
-.rec-link:hover {
-    text-decoration: underline;
-}
-
-/* Mobile Adjustment */
-@media (max-width: 600px) {
-    .recommendation-container {
-        grid-template-columns: 1fr; /* Stack into 1 column on small screens */
-    }
-}
-
-/* --- ML BUTTON & LOADING CSS --- */
+/* =========================================
+   PREDICTIVE TAB BUTTONS
+   ========================================= */
 .btn-predict { 
     background-color: #28a745; 
-    color: white; 
-    border: none; 
-    padding: 12px 24px; 
-    border-radius: 5px; 
-    cursor: pointer; 
-    font-size: 18px; 
-    width: 100%; 
-    margin-bottom: 20px; 
-    font-weight: bold; 
-    transition: background 0.3s;
+    color: white; border: none; 
+    padding: 12px 24px; border-radius: 5px; 
+    cursor: pointer; font-size: 18px; 
+    width: 100%; margin-bottom: 20px; 
+    font-weight: bold; transition: background 0.3s;
 }
-
 .btn-predict:hover { background-color: #218838; }
 
 #loading { 
-    display: none; 
-    text-align: center; 
-    color: #666; 
-    margin-top: 20px; 
-    font-size: 18px; 
-    font-weight: bold;
-}
-
-/* --- HERO METRIC BANNER CSS --- */
-.current-weather-banner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #e9ecef;
-    padding: 20px 30px;
-    border-radius: 10px;
-    margin-bottom: 25px;
-    flex-wrap: wrap; 
-    gap: 20px;
-}
-
-.weather-stats-group {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    font-size: 1.2em;
-    color: #495057;
-}
-
-.aqi-badge {
-    background: white;
-    padding: 20px 40px;
-    border-radius: 12px;
-    text-align: center;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-    border-left: 8px solid #d9534f; 
-    min-width: 150px;
-}
-
-.aqi-title {
-    font-size: 0.9em;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: #6c757d;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.aqi-number {
-    font-size: 4.5em;
-    font-weight: 900;
-    color: #d9534f;
-    line-height: 1;
-    margin: 0;
-}
-
-.aqi-scale {
-    font-size: 0.3em;
-    color: #adb5bd;
-    font-weight: normal;
+    display: none; text-align: center; color: #666; margin-top: 20px; font-size: 18px; font-weight: bold;
 }

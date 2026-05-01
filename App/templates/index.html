@@ -1,273 +1,336 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <title>NCR Air Quality Dashboard</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-
+    
+    <!-- Chart.js & Leaflet.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-  </head>
-  <body>
-    <div class="header-container">
-      <h1 style="color: #2c3e50; margin-top: 0">Air Quality Command Center</h1>
-      <form method="POST" action="/">
-        <label for="city_selection"><strong>Select Location:</strong></label>
-        <select name="city_selection" id="city_selection" style="padding: 8px; font-size: 16px; border-radius: 4px; border: 1px solid #ccc;">
-          {% for city in cities %}
-            <option value="{{ city }}" {% if city == selected_city %}selected{% endif %}>
-              {{ city }}
-            </option>
-          {% endfor %}
-        </select>
-        <button type="submit" style="padding: 8px 16px; background-color: #343a40; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
-          Pull Latest Data
-        </button>
-      </form>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <!-- Initial Loading Screen -->
+    <div id="app-loader">
+        <div class="spinner"></div>
+        <div>Initializing Command Center...</div>
+        <div style="font-size: 0.5em; color: #666; margin-top: 10px;">Pinging 16 NCR cities via satellite. This takes ~5 seconds.</div>
     </div>
 
-    {% if current %}
-
-    <div class="tab-container">
-      <button class="tab-btn active" onclick="switchTab('current-section', this)">Current</button>
-      <button class="tab-btn" onclick="switchTab('predict-section', this)">Predictive</button>
+    <div class="header-container" style="margin-bottom: 15px;">
+        <h1 style="color: #2c3e50; margin: 0;">Air Quality Command Center</h1>
+        <p style="color: #6c757d; margin-top: 5px;">Select a city on the map to view live analytics.</p>
     </div>
 
-    {% set aqi_colors = {1: '#28a745', 2: '#ffc107', 3: '#fd7e14', 4: '#dc3545', 5: '#6f42c1'} %}
-    {% set aqi_color = aqi_colors.get(current.aqi, '#6c757d') %}
-
-<div id="current-section" class="tab-content active card" style="border-top: 8px solid {{ aqi_color }}; transition: border-color 0.5s ease;">
-
-    <!-- Title and Timestamp -->
-    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-        <h2 class="section-title" style="margin: 0;">Live Conditions: {{ selected_city }}</h2>
-        <span style="font-size: 0.85em; color: #6c757d; background: #eee; padding: 4px 10px; border-radius: 20px;">
-            ⏱️ Updated: {{ current.timestamp }}
-        </span>
-    </div>
-
-    <div class="current-weather-banner">
-        <!-- Weather Stats: Strictly for the small metrics -->
-        <div class="weather-stats-group" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
-            <div><strong>Temperature:</strong> {{ current.temp }}°C</div>
-            <div><strong>Humidity:</strong> {{ current.humidity }}%</div>
-            <div>🌧️ {{ current.precipitation | default(0) }} mm</div>
-            <div style="display: flex; align-items: center; gap: 8px">
-                🧭 <strong>Wind:</strong> {{ current.wind_speed }} m/s
-                <span style="display: inline-block; transform: rotate({{ current.wind_direction }}deg); transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);">⬇️</span>
-                <span style="font-size: 0.8em; color: #6c757d">({{ current.wind_direction }}°)</span>
-            </div>
+    <!-- MASTER-DETAIL SPA LAYOUT -->
+    <div class="spa-layout">
+        
+        <!-- LEFT COLUMN: THE MAP -->
+        <div class="map-column">
+            <div id="pollution-map"></div>
         </div>
 
-        <!-- Health Protocol: Standing on its own for better responsiveness -->
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 20px; background-color: #f8f9fa; border-radius: 12px; border-left: 8px solid {{ aqi_color }}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+        <!-- RIGHT COLUMN: THE DATA -->
+        <div class="data-column" id="dashboard-content" style="opacity: 0; transition: opacity 0.5s ease;">
             
-            <div style="flex: 1; padding-right: 20px;">
-                <div style="font-size: 1.05em; line-height: 1.4;">
-                    {% if current.aqi == 1 %}
-                        <span style="color: #155724"><strong>EXCELLENT:</strong> Perfect conditions. Safe for all outdoor activities.</span>
-                    {% elif current.aqi == 2 %}
-                        <span style="color: #856404"><strong>FAIR:</strong> Generally acceptable. Sensitive groups should monitor symptoms.</span>
-                    {% elif current.aqi == 3 %}
-                        <span style="color: #c95c00"><strong>MODERATE:</strong> Wear a mask near traffic. Sensitive groups should stay indoors.</span>
-                    {% elif current.aqi == 4 %}
-                        <span style="color: #721c24"><strong>POOR:</strong> Avoid prolonged outdoor exertion. Wear an N95 mask.</span>
-                    {% elif current.aqi == 5 %}
-                        <span style="color: #4a148c"><strong>HAZARDOUS:</strong> Emergency. Stay indoors with windows closed.</span>
-                    {% else %}
-                        <span style="color: #6c757d">Waiting for sensor data...</span>
-                    {% endif %}
+            <div class="tab-container">
+                <button class="tab-btn active" onclick="switchTab('current-section', this)">Live Conditions</button>
+                <button class="tab-btn" onclick="switchTab('predict-section', this)">24H Predictive Engine</button>
+            </div>
+
+            <!-- ================= CURRENT SECTION ================= -->
+            <div id="current-section" class="tab-content active card" id="dynamic-border" style="border-top: 8px solid #ccc; transition: border-color 0.3s ease;">
+                
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
+                    <h2 class="section-title" style="margin: 0;" id="dom-city-name">--</h2>
+                    <span style="font-size: 0.85em; color: #6c757d; background: #eee; padding: 4px 10px; border-radius: 20px;">
+                        ⏱️ Updated: <span id="dom-timestamp">--</span>
+                    </span>
+                </div>
+
+                <div class="current-weather-banner">
+                    <div class="weather-stats-group" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
+                        <div><strong>Temp:</strong> <span id="dom-temp">--</span>°C</div>
+                        <div><strong>Humidity:</strong> <span id="dom-humidity">--</span>%</div>
+                        <div>🌧️ <span id="dom-precip">--</span> mm</div>
+                        <div style="display: flex; align-items: center; gap: 8px">
+                            🧭 <strong>Wind:</strong> <span id="dom-wind">--</span> m/s
+                            <span id="dom-wind-arrow" style="display: inline-block; transition: transform 0.6s ease;">⬇️</span>
+                        </div>
+                    </div>
+
+                    <!-- AQI Gradient Scale -->
+                    <div class="aqi-scale-wrapper">
+                        <div class="aqi-scale-title">Current Risk Level</div>
+                        <div class="aqi-gradient-track">
+                            <div id="dom-aqi-pin" class="aqi-marker" style="left: 10%; background-color: #ccc;"></div>
+                        </div>
+                        <div class="aqi-labels">
+                            <span>1 (Good)</span><span>2 (Fair)</span><span>3 (Moderate)</span><span>4 (Poor)</span><span>5 (Severe)</span>
+                        </div>
+                    </div>
+                    <div style="width: 100%; margin-bottom: 20px;"></div>
+
+                    <!-- Overall AQI Box -->
+                    <div id="dom-aqi-box" style="display: flex; align-items: center; justify-content: space-between; padding: 5px; background-color: #f8f9fa; border-radius: 12px; border-left: 8px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%;">
+                        <div style="flex: 1; padding-right: 20px;">
+                            <div style="font-size: 1.05em; line-height: 1.4;">
+                                <span id="dom-health-status" style="font-weight: bold; margin-right: 5px;">--</span>
+                                <span id="dom-health-desc">--</span>
+                            </div>
+                        </div>
+
+                        <div style="text-align: right; border-left: 1px solid #dee2e6; padding-left: 20px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
+                            <div style="font-size: 0.7em; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 1px;">
+                                Overall AQI 
+                                <span id="dom-trend-text" style="margin-left: 5px;">--</span>
+                            </div>
+                            <div id="dom-aqi-number" style="font-size: 2.8em; font-weight: 900; line-height: 1; margin-top: 2px;">
+                                --<span style="font-size: 0.35em; color: #adb5bd; margin-left: 2px;">/5</span>
+                            </div>
+                            <div id="dom-primary-badge" style="margin-top: 10px; font-size: 0.75em; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
+                                <span style="font-size: 1.2em;">⚠️</span> Primary: <span id="dom-primary-val">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pollutant Breakdown -->
+                <h3 style="margin-bottom: 10px">Pollutant Breakdown</h3>
+                <div class="info-grid">
+                  <div class="info-card">
+                    <h4>PM2.5 <span class="val-badge" id="dom-pm25">--</span></h4>
+                    <p>Fine Particulate Matter. Deep lung penetration.</p>
+                  </div>
+                  <div class="info-card">
+                    <h4>PM10 <span class="val-badge" id="dom-pm10">--</span></h4>
+                    <p>Coarse Particulate Matter. Irritates eyes and throat.</p>
+                  </div>
+                  <div class="info-card">
+                    <h4>NO2 <span class="val-badge" id="dom-no2">--</span></h4>
+                    <p>Nitrogen Dioxide. Aggravates respiratory diseases.</p>
+                  </div>
+                  <div class="info-card">
+                    <h4>O3 <span class="val-badge" id="dom-o3">--</span></h4>
+                    <p>Ground-Level Ozone. Primary component of smog.</p>
+                  </div>
+                </div>
+
+                <!-- Health Recommendations List -->
+                <h3 style="margin-bottom: 15px; margin-top: 35px; font-weight: 700; color: #2c3e50;">Health Recommendations</h3>
+                <div class="recommendation-list-container">
+                    <div class="rec-list-item">
+                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🚵‍♂️</span></div>
+                        <div class="rec-text-column"><p class="rec-main-text" id="rec-exercise">--</p></div>
+                    </div>
+                    <div class="rec-list-item">
+                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🪟</span></div>
+                        <div class="rec-text-column">
+                            <p class="rec-main-text" id="rec-window">--</p>
+                        </div>
+                    </div>
+                    <div class="rec-list-item" id="row-mask">
+                      <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">😷</span></div>
+                      <div class="rec-text-column">
+                          <p class="rec-main-text" id="rec-mask">--</p>
+                      </div>
+                  </div>
+                  <!-- 4. Air Purifier Recommendation -->
+                  <div class="rec-list-item" id="row-purifier">
+                      <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🌬️</span></div>
+                      <div class="rec-text-column">
+                          <p class="rec-main-text" id="rec-purifier">--</p>
+                      </div>
+                  </div>
                 </div>
             </div>
 
-            <div style="text-align: right; border-left: 1px solid #dee2e6; padding-left: 20px;">
-                <div style="font-size: 0.7em; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 1px;">Overall AQI</div>
-                <div style="font-size: 2.8em; font-weight: 900; color: {{ aqi_color }}; line-height: 1; margin-top: 2px;">
-                    {{ current.aqi }}<span style="font-size: 0.35em; color: #adb5bd; margin-left: 2px;">/5</span>
+            <!-- ================= PREDICTIVE SECTION ================= -->
+            <div id="predict-section" class="tab-content card" style="border-top: 5px solid #28a745">
+              <h2 class="section-title">24-Hour Forward Forecast</h2>
+              <!-- We now pass the global selected city to the python route -->
+              <button class="btn-predict" onclick="fetchPrediction(globalSelectedCity)">Run XGBoost Engine</button>
+
+              <div id="loading" style="display: none; margin-top: 15px;">⚙️ Crunching weather vectors...</div>
+              <div id="prediction-results" style="display: none; text-align: center">
+                <h4 style="margin: 0; color: #666; text-transform: uppercase; margin-top: 20px;">Next Hour Expected PM2.5</h4>
+                <h1 id="next-hour-val" style="margin: 10px 0; font-size: 4em; color: #28a745">--</h1>
+                <div style="height: 400px; width: 100%; margin-top: 30px">
+                  <canvas id="predictionChart"></canvas>
                 </div>
+              </div>
             </div>
-        </div>
-    </div>
-</div>
 
-      <h3 style="margin-bottom: 10px">Pollutant Breakdown & Health Impact</h3>
-      <div class="info-grid">
-        <div class="info-card">
-          <h4>PM2.5 <span class="val-badge">{{ current.components.pm2_5 }} µg/m³</span></h4>
-          <p><strong>Fine Particulate Matter.</strong>Placeholder</p>
-        </div>
+        </div> <!-- End Data Column -->
+    </div> <!-- End SPA Layout -->
 
-        <div class="info-card">
-          <h4>PM10 <span class="val-badge">{{ current.components.pm10 }} µg/m³</span></h4>
-          <p><strong>Coarse Particulate Matter.</strong> Placeholder</p>
-        </div>
-
-        <div class="info-card">
-          <h4>NO2 <span class="val-badge">{{ current.components.no2 }} µg/m³</span></h4>
-          <p><strong>Nitrogen Dioxide.</strong> Placeholder</p>
-        </div>
-
-        <div class="info-card">
-          <h4>O3 <span class="val-badge">{{ current.components.o3 }} µg/m³</span></h4>
-          <p><strong>Ground-Level Ozone.</strong> Placeholder</p>
-        </div>
-      </div>
-    </div>
-
-  {% set rec_data = {
-    1: {"color": "#28a745", "bg": "#eafaf1", "exercise": "Enjoy outdoor exercise", "window": "Open windows for fresh air", "mask": "No mask needed", "purifier": "Purifier not required"},
-    2: {"color": "#ffc107", "bg": "#fff9e6", "exercise": "Outdoor exercise is fine", "window": "Keep windows open", "mask": "Mask only if sensitive", "purifier": "Purifier optional"},
-    3: {"color": "#fd7e14", "bg": "#fff2e6", "exercise": "Reduce intense outdoor exercise", "window": "Close windows near traffic", "mask": "Wear a mask if sensitive", "purifier": "Consider running a purifier"},
-    4: {"color": "#dc3545", "bg": "#fdf2f2", "exercise": "Avoid outdoor exercise", "window": "Close windows to avoid dirty air", "mask": "Wear a mask outdoors", "purifier": "Run an air purifier"},
-    5: {"color": "#6f42c1", "bg": "#f5f0ff", "exercise": "Strictly avoid outdoors", "window": "Seal all windows tightly", "mask": "N95 mask mandatory", "purifier": "Run purifier on max"}
-} %}
-{% set s = rec_data.get(current.aqi, rec_data[4]) %}
-
-  <div class="health-card">
-    <div class="health-title">Health recommendations</div>
-    
-    <div class="rec-list">
-        <!-- 1. Exercise -->
-        <div class="rec-row">
-            <div class="rec-icon-box" style="background-color: {{ s.bg }};">
-                <span>🚵‍♂️</span> <!-- You can replace with <img src="..."> -->
-            </div>
-            <div class="rec-content">
-                <p class="rec-text">{{ s.exercise }}</p>
-            </div>
-        </div>
-
-        <!-- 2. Windows -->
-        <div class="rec-row">
-            <div class="rec-icon-box" style="background-color: {{ s.bg }};">
-                <span>🪟</span>
-            </div>
-            <div class="rec-content">
-                <p class="rec-text">{{ s.window }}</p>
-                <a href="#" class="rec-link">Get a monitor</a>
-            </div>
-        </div>
-
-        <!-- 3. Mask -->
-        <div class="rec-row">
-            <div class="rec-icon-box" style="background-color: {{ s.bg }};">
-                <span>😷</span>
-            </div>
-            <div class="rec-content">
-                <p class="rec-text">{{ s.mask }}</p>
-                <a href="#" class="rec-link">Get a mask</a>
-            </div>
-        </div>
-
-        <!-- 4. Air Purifier -->
-        <div class="rec-row">
-            <div class="rec-icon-box" style="background-color: {{ s.bg }};">
-                <span>🌬️</span>
-            </div>
-            <div class="rec-content">
-                <p class="rec-text">{{ s.purifier }}</p>
-                <a href="#" class="rec-link">Get an air purifier</a>
-            </div>
-        </div>
-    </div>
-</div>
-
-    <div id="predict-section" class="tab-content card" style="border-top: 5px solid #28a745">
-      <h2 class="section-title">24-Hour Forward Forecast</h2>
-
-      <button class="btn-predict" onclick="fetchPrediction('{{ selected_city }}')">Run XGBoost Engine</button>
-
-      <div id="loading" style="display: none; margin-top: 15px;">
-        ⚙️ Crunching weather vectors and historical lags...
-      </div>
-
-      <div id="prediction-results" style="display: none; text-align: center">
-        <h4 style="margin: 0; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-top: 20px;">Next Hour Expected PM2.5</h4>
-        <h1 id="next-hour-val" style="margin: 10px 0; font-size: 4em; color: #28a745">-- <span style="font-size: 0.3em; color: #333">µg/m³</span></h1>
-
-        <div style="height: 400px; width: 100%; margin-top: 30px">
-          <canvas id="predictionChart"></canvas>
-        </div>
-      </div>
-    </div>
-
+    <!-- ================= JAVASCRIPT ================= -->
     <script>
-      // --- TAB SWITCHING LOGIC ---
-      function switchTab(tabId, btn) {
-        document.querySelectorAll(".tab-content").forEach((tab) => tab.classList.remove("active"));
-        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-        document.getElementById(tabId).classList.add("active");
-        btn.classList.add("active");
-      }
+        let allCityData = [];
+        let globalSelectedCity = "Parañaque City"; // Default city
+        let mapInstance = null;
+        let predictionChartInstance = null;
 
-      // --- ML PREDICTION LOGIC ---
-      let predictionChartInstance = null;
+        // 1. Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            fetch('/api/live-data')
+                .then(res => res.json())
+                .then(data => {
+                    allCityData = data;
+                    document.getElementById('app-loader').style.display = 'none'; // Hide loader
+                    document.getElementById('dashboard-content').style.opacity = 1; // Show dashboard
+                    initMap();
+                    updateDashboard(globalSelectedCity); // Load default city
+                });
+        });
 
-      function fetchPrediction(cityName) {
-        document.getElementById("loading").style.display = "block";
-        document.getElementById("prediction-results").style.display = "none";
+        // 2. Build the Map
+        function initMap() {
+            mapInstance = L.map('pollution-map').setView([14.5995, 120.9842], 11);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(mapInstance);
 
-        fetch("/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ city: cityName }),
-        })
-          .then((response) => response.json())
-          .then((data) => {
-            document.getElementById("loading").style.display = "none";
-            document.getElementById("prediction-results").style.display = "block";
+            allCityData.forEach(city => {
+                const marker = L.circleMarker([city.lat, city.lon], {
+                    radius: 12,
+                    fillColor: city.health.color,
+                    color: '#ffffff',
+                    weight: 2,
+                    fillOpacity: 0.9
+                }).addTo(mapInstance);
 
-            document.getElementById("next-hour-val").innerHTML = `${data.prediction} <span style="font-size: 0.3em; color: #333;">µg/m³</span>`;
+                // Add hover tooltip
+                marker.bindTooltip(`<b>${city.name}</b><br>AQI: ${city.aqi}/5`);
 
-            const ctx = document.getElementById("predictionChart").getContext("2d");
-
-            if (predictionChartInstance) {
-              predictionChartInstance.destroy();
-            }
-
-            predictionChartInstance = new Chart(ctx, {
-              type: "line",
-              data: {
-                labels: data.chart_data.labels,
-                datasets: [
-                  {
-                    label: "Predicted PM2.5",
-                    data: data.chart_data.pm25,
-                    borderColor: "#28a745",
-                    backgroundColor: "rgba(40, 167, 69, 0.2)",
-                    fill: true,
-                    tension: 0.4,
-                    borderWidth: 3,
-                    pointRadius: 3,
-                  },
-                ],
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                  x: {
-                    type: "time",
-                    time: { unit: "hour", tooltipFormat: "MMM d, h:mm a" },
-                    grid: { display: false },
-                  },
-                  y: {
-                    beginAtZero: true,
-                    title: { display: true, text: "PM2.5 (µg/m³)" },
-                  },
-                },
-                plugins: { legend: { display: false } },
-              },
+                // On Click: Update the entire dashboard instantly!
+                marker.on('click', () => {
+                    updateDashboard(city.name);
+                });
             });
-          })
-          .catch((error) => {
-            document.getElementById("loading").style.display = "none";
-            alert("Error running prediction. Make sure your Flask backend is running and model.pkl is present.");
-            console.error("Error:", error);
-          });
-      }
+        }
+
+        // 3. The Core UI Updater (Replaces Jinja)
+        function updateDashboard(cityName) {
+            const city = allCityData.find(c => c.name === cityName);
+            if (!city) return;
+            
+            globalSelectedCity = city.name; // Save state for the Predict tab
+
+            // Text Updates
+            document.getElementById('dom-city-name').innerText = "Live Conditions: " + city.name;
+            document.getElementById('dom-timestamp').innerText = city.timestamp;
+            document.getElementById('dom-temp').innerText = city.temp;
+            document.getElementById('dom-humidity').innerText = city.humidity;
+            document.getElementById('dom-precip').innerText = city.precipitation;
+            document.getElementById('dom-wind').innerText = city.wind_speed;
+            document.getElementById('dom-wind-arrow').style.transform = `rotate(${city.wind_direction}deg)`;
+            
+            // Pollutants
+            document.getElementById('dom-pm25').innerText = city.pm25 + " µg/m³";
+            document.getElementById('dom-pm10').innerText = city.pm10 + " µg/m³";
+            document.getElementById('dom-no2').innerText = city.no2 + " µg/m³";
+            document.getElementById('dom-o3').innerText = city.o3 + " µg/m³";
+
+            // AQI & Colors
+            document.getElementById('dom-aqi-number').innerHTML = `${city.aqi}<span style="font-size: 0.35em; color: #adb5bd; margin-left: 2px;">/5</span>`;
+            document.getElementById('dom-aqi-number').style.color = city.health.color;
+            document.getElementById('dom-aqi-box').style.borderLeftColor = city.health.color;
+            
+            // Gradient Scale Pin
+            document.getElementById('dom-aqi-pin').style.left = `${(city.aqi * 20) - 10}%`;
+            document.getElementById('dom-aqi-pin').style.backgroundColor = city.health.color;
+
+            // Health Description
+            document.getElementById('dom-health-status').innerText = city.health.status + ":";
+            document.getElementById('dom-health-status').style.color = city.health.color;
+            document.getElementById('dom-health-desc').innerText = city.health.desc;
+
+            // Trend & Primary
+            const trendColor = city.trend === 'worsening' ? '#dc3545' : (city.trend === 'improving' ? '#28a745' : '#6c757d');
+            document.getElementById('dom-trend-text').innerHTML = `<span style="color:${trendColor}">${city.trend_icon} ${city.trend.charAt(0).toUpperCase() + city.trend.slice(1)}</span>`;
+            
+            const badge = document.getElementById('dom-primary-badge');
+            badge.style.color = city.health.color;
+            badge.style.backgroundColor = city.health.bg;
+            badge.style.border = `1px solid ${city.health.color}40`;
+            document.getElementById('dom-primary-val').innerText = city.primary_pollutant;
+
+            // Health Recommendations Lists
+            document.getElementById('rec-exercise').innerText = city.health.exercise;
+            document.getElementById('rec-window').innerText = city.health.window;
+            document.getElementById('rec-mask').innerText = city.health.mask;
+            document.getElementById('rec-purifier').innerText = city.health.purifier;
+
+            document.querySelectorAll('.dom-bg-color').forEach(el => {
+                el.style.backgroundColor = city.health.bg;
+            });
+         // --- NEW: CONDITIONAL HIDING LOGIC ---
+              // If AQI is 1 (Good) or 2 (Fair), hide the mask and purifier rows.
+              if (city.aqi <= 2) {
+                  document.getElementById('row-mask').style.display = 'none';
+                  document.getElementById('row-purifier').style.display = 'none';
+              } else {
+                  // If AQI is 3, 4, or 5, show them!
+                  document.getElementById('row-mask').style.display = 'flex';
+                  document.getElementById('row-purifier').style.display = 'flex';
+              }
+        }
+        // 4. Tab Switching Logic
+        function switchTab(tabId, btn) {
+            document.querySelectorAll(".tab-content").forEach(tab => tab.classList.remove("active"));
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.getElementById(tabId).classList.add("active");
+            btn.classList.add("active");
+        }
+
+        // 5. Predict Logic (Unchanged except using globalSelectedCity)
+        function fetchPrediction(cityName) {
+            document.getElementById("loading").style.display = "block";
+            document.getElementById("prediction-results").style.display = "none";
+
+            fetch("/predict", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ city: cityName }),
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("loading").style.display = "none";
+                document.getElementById("prediction-results").style.display = "block";
+                document.getElementById("next-hour-val").innerHTML = `${data.prediction} <span style="font-size: 0.3em; color: #333;">µg/m³</span>`;
+
+                const ctx = document.getElementById("predictionChart").getContext("2d");
+                if (predictionChartInstance) predictionChartInstance.destroy();
+
+                predictionChartInstance = new Chart(ctx, {
+                  type: "line",
+                  data: {
+                    labels: data.chart_data.labels,
+                    datasets: [{
+                        label: "Predicted PM2.5", data: data.chart_data.pm25,
+                        borderColor: "#28a745", backgroundColor: "rgba(40, 167, 69, 0.2)",
+                        fill: true, tension: 0.4, borderWidth: 3, pointRadius: 3,
+                    }],
+                  },
+                  options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                      x: { type: "time", time: { unit: "hour", tooltipFormat: "MMM d, h:mm a" }, grid: { display: false } },
+                      y: { beginAtZero: true, title: { display: true, text: "PM2.5 (µg/m³)" } },
+                    },
+                    plugins: { legend: { display: false } },
+                  },
+                });
+            })
+            .catch(err => {
+                document.getElementById("loading").style.display = "none";
+                alert("Error running prediction engine.");
+            });
+        }
     </script>
-    {% endif %}
-  </body>
+</body>
 </html>
