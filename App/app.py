@@ -23,16 +23,21 @@ db = mongo_client["air_quality_db"]
 collection = db["pollution_data"]
 
 
-def get_db_dataframe():
-    cursor = collection.find({}, {'_id': 0}) 
+def get_db_dataframe(limit_days=7):
+    # Only pull recent data to save memory and prevent timeouts on boot
+    threshold = (datetime.now() - pd.Timedelta(days=limit_days)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Filter by timestamp in the query instead of pulling everything
+    cursor = collection.find({"timestamp": {"$gte": threshold}}, {'_id': 0}) 
     data = list(cursor)
+    
     if not data:
         return pd.DataFrame()
     return pd.DataFrame(data)
 
-df = get_db_dataframe()
-if not df.empty:
-    print(df.groupby('city')['timestamp'].max())
+df_init = get_db_dataframe(limit_days=1) 
+if not df_init.empty:
+    print("Cloud Database Connected. Latest entry:", df_init['timestamp'].max())
 
 model_sprinter = joblib.load('model_sprinter.pkl')
 model_marathoner = joblib.load('model_marathoner.pkl')
