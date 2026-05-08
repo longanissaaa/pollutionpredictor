@@ -125,17 +125,15 @@ def precalculate_history_and_trends():
     return result
 
 def get_historical_baselines(city_name, future_weather_df):
-    """
-    Safely retrieves PM2.5 data from exactly 24 hours ago and 365 days ago.
-    If the data doesn't exist yet, it returns None (null) so the chart doesn't break.
-    """
     yesterday_data = [None] * len(future_weather_df)
     last_year_data = [None] * len(future_weather_df)
     
     try:
-        history_df = get_db_dataframe()
-        if history_df.empty:
-            return yesterday_data, last_year_data
+        # Instead of getting the 7-day dataframe, we pull the specific range needed
+        # Pull data from 366 days ago up to now to cover both 'Yesterday' and 'Last Year'
+        threshold_last_year = (datetime.now() - pd.Timedelta(days=366)).strftime('%Y-%m-%d %H:%M:%S')
+        cursor = collection.find({"timestamp": {"$gte": threshold_last_year}}, {'_id': 0})
+        history_df = pd.DataFrame(list(cursor))
             
         history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
         
