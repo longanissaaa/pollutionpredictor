@@ -281,6 +281,7 @@ def predict():
     try:
         history_df = get_db_dataframe()
         if history_df.empty:
+
             lag_24_value, rolling_buffer = 10.0, [10.0]*3
         else:
             city_history = history_df[history_df['city'] == official_name].copy()
