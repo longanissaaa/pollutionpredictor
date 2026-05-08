@@ -14,12 +14,17 @@ instance = AirService()
 DAYS_TO_HARVEST = 730
 CHUNK_SIZE_DAYS = 30
 
-ncr_cities = [
-    "Caloocan", "Las Piñas", "Makati City", "Malabon City",
-    "Mandaluyong City", "Manila", "Marikina City", "Muntinlupa City",
-    "Navotas City", "Parañaque City", "Pasay City", "Pasig City",
-    "Quezon City", "San Juan City", "Taguig City", "Valenzuela City"
-]
+NCR_COORDS = {
+    "Caloocan": (14.6504, 120.9715), "Las Piñas": (14.4445, 120.9939),
+    "Makati City": (14.5547, 121.0244), "Malabon City": (14.6628, 120.9573),
+    "Mandaluyong City": (14.5794, 121.0359), "Manila": (14.5995, 120.9842),
+    "Marikina City": (14.6507, 121.1029), "Muntinlupa City": (14.4081, 121.0415),
+    "Navotas City": (14.6715, 120.9436), "Parañaque City": (14.4793, 121.0198),
+    "Pasay City": (14.5378, 121.0014), "Pasig City": (14.5764, 121.0851),
+    "Quezon City": (14.6760, 121.0437), "San Juan City": (14.6042, 121.0300),
+    "Taguig City": (14.5176, 121.0509), "Valenzuela City": (14.7011, 120.9830), 
+    "Pateros" : (14.5484,121.0708)
+}
 
 def get_pollution_history(lat, lon, start, end):
     url = f"http://api.openweathermap.org/data/2.5/air_pollution/history?lat={lat}&lon={lon}&start={start}&end={end}&appid={OWM_KEY}"
@@ -78,13 +83,10 @@ def harvest():
     end_ts = int(time.time())
     start_ts = end_ts - (DAYS_TO_HARVEST * 24 * 3600) 
 
-    for city in ncr_cities:
+    for city, (lat, lon) in NCR_COORDS.items():
         print(f"📡 Harvesting {city}...", end=" ", flush=True)
-        lat, lon, official_name = instance.get_coords(city)
         
-        if not lat:
-            continue
-            
+        
         city_count = 0
         
         for chunk_start in range(start_ts, end_ts, CHUNK_SIZE_DAYS * 24 * 3600):
@@ -108,11 +110,13 @@ def harvest():
                 
                 if w_info:
                     final_data.append({
-                       'city': official_name,
-                        'dt': ts,
+                        'timestamp': datetime.fromtimestamp(p.get('dt')).strftime('%Y-%m-%d %H:%M:%S'),
+                        'city': city,
                         'aqi': p['main'].get('aqi'),
                         'pm2_5': p['components'].get('pm2_5'),
                         'pm10': p['components'].get('pm10'),
+                        'no2': p['components'].get('no2'), 
+                        'o3': p['components'].get('o3'),    
                         'temp': w_info['temp'],
                         'humidity': w_info['humidity'],
                         'wind_speed': w_info['wind_speed'],
@@ -130,9 +134,11 @@ def harvest():
 
     if final_data:
         df = pd.DataFrame(final_data)
-        df = df.sort_values(['city', 'dt'])
-        df.to_csv("training_data.csv", index=False)
-        print(f"\n✨ Success! {len(df)} total records saved to training_data.csv")
+        df = df.drop_duplicates(subset=['city', 'timestamp'])
+        
+        df = df.sort_values(['city', 'timestamp'])
+        df.to_csv("pollution_data.csv", index=False)
+        print(f"\n✨ Success! {len(df)} total unique records saved to pollution_data.csv")
     else:
         print("\nNo data collected.")
 
