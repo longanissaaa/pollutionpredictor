@@ -85,8 +85,6 @@ def precalculate_history_and_trends():
         return result
 
     try:
-        df = pd.read_csv("pollution_data.csv")
-        if df.empty: return result
         
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         now = datetime.now()
@@ -130,11 +128,11 @@ def get_historical_baselines(city_name, future_weather_df):
     last_year_data = [None] * len(future_weather_df)
     
     try:
-        history_df = pd.read_csv("pollution_data.csv")
+        history_df = get_db_dataframe()
+        if history_df.empty:
+            return yesterday_data, last_year_data
+            
         history_df['timestamp'] = pd.to_datetime(history_df['timestamp'])
-        
-        # 1. ADD THIS PRINT: See what city Python is looking for
-        print(f"\n[DEBUG] Searching CSV for exactly: '{city_name}'")
         
         
         city_history = history_df[history_df['city'] == city_name]
@@ -281,11 +279,10 @@ def predict():
     
     # 2. DATA ANCHORING (Lag & Rolling Buffer)
     try:
-        if not os.path.exists("pollution_data.csv"):
-            # Fallback if no file exists yet
+        history_df = get_db_dataframe()
+        if history_df.empty:
             lag_24_value, rolling_buffer = 10.0, [10.0]*3
         else:
-            history_df = pd.read_csv("pollution_data.csv")
             city_history = history_df[history_df['city'] == official_name].copy()
             
             if not city_history.empty:
