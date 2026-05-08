@@ -27,4 +27,4 @@ jobs:
         env:
           OPENAIR_API_KEY: ${{ secrets.OPENAIR_API_KEY }}
           MONGO_URI: ${{ secrets.MONGO_URI }}
-        run: python Harvester.py
+        run: python App/Harvester.py
