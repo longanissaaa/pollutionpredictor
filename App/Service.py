@@ -4,12 +4,15 @@ import os
 from datetime import datetime
 import csv
 from datetime import timezone
+import pymongo
 
 load_dotenv()
 
 class AirService:
     def __init__(self):
         self.owm_key = os.getenv("OPENAIR_API_KEY")
+        self.mongo_client = pymongo.MongoClient(os.getenv("MONGO_URI"))
+        self.collection = self.mongo_client["air_quality_db"]["pollution_data"]
 
     def get_coords(self, city_name): 
         geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={city_name},PH&limit=1&appid={self.owm_key}"
@@ -62,7 +65,7 @@ class AirService:
 
         url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT"
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=5)
             response.raise_for_status()
             data = response.json().get('hourly', {})
             
@@ -77,6 +80,9 @@ class AirService:
                     'wind_speed': data['wind_speed_10m'][i]
                 })
             return forecast_list
+        except requests.exceptions.Timeout:
+            print("Open-Meteo timed out!")
+            return []
         except Exception as e:
             print(f"Error fetching Open-Meteo forecast: {e}")
             return []
@@ -85,7 +91,7 @@ class AirService:
         file_path = "pollution_data.csv"
         file_exist = os.path.isfile(file_path)
         
-        fieldnames = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10', 'temp', 'humidity', 'wind_speed']
+        fieldnames = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10', 'temp', 'humidity', 'wind_speed',"no2","o3"]
 
         with open(file_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -104,6 +110,8 @@ class AirService:
                     'pm10': p['components'].get('pm10'),
                     'temp': weather_stats.get('temp') if weather_stats else None,
                     'humidity': weather_stats.get('humidity') if weather_stats else None,
-                    'wind_speed': weather_stats.get('wind_speed') if weather_stats else None
+                    'wind_speed': weather_stats.get('wind_speed') if weather_stats else None,
+                    'no2': p['components'].get('no2'),
+                    'o3': p['components'].get('o3'),
                 }
-                writer.writerow(row)
+                self.collection.insert_one(row)
