@@ -44,8 +44,6 @@ def prepare_data(df, is_training=True, historical_values=None, mode="sprinter"):
     # MODE-SPECIFIC LOGIC
     if mode == "sprinter":
         if is_training:
-            # 3. FIX: Avoid Pandas "cannot reindex from a duplicate axis" ValueError
-            # We calculate rolling mean and safely merge it back using city and timestamp
             rolling_series = df.set_index('timestamp').groupby('city')['pm2_5'].rolling('3h', closed='left').mean()
             rolling_df = rolling_series.reset_index(name='pm25_rolling_3h')
             
