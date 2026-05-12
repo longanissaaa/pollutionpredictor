@@ -62,27 +62,28 @@ class AirService:
             return None
         
     def get_weather_forecast(self, lat, lon):
-
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=GMT"
+        url = (
+            "https://api.open-meteo.com/v1/forecast?"
+            f"latitude={lat}&longitude={lon}"
+            "&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation,wind_direction_10m"
+            "&timezone=GMT"
+        )
         try:
             response = requests.get(url, timeout=5)
             response.raise_for_status()
             data = response.json().get('hourly', {})
-            
-
             forecast_list = []
-            for i in range(len(data.get('time', []))):
+            times = data.get('time', [])
+            for i in range(len(times)):
                 forecast_list.append({
-                    
-                    'dt': int(datetime.fromisoformat(data['time'][i]).replace(tzinfo=timezone.utc).timestamp()),
+                    'dt': int(datetime.fromisoformat(times[i]).replace(tzinfo=timezone.utc).timestamp()),
                     'temp': data['temperature_2m'][i],
                     'humidity': data['relative_humidity_2m'][i],
-                    'wind_speed': data['wind_speed_10m'][i]
+                    'wind_speed': data['wind_speed_10m'][i],
+                    'precipitation': data['precipitation'][i],
+                    'wind_direction': data['wind_direction_10m'][i]
                 })
             return forecast_list
-        except requests.exceptions.Timeout:
-            print("Open-Meteo timed out!")
-            return []
         except Exception as e:
             print(f"Error fetching Open-Meteo forecast: {e}")
             return []
