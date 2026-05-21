@@ -11,7 +11,7 @@ load_dotenv()
 OWM_KEY = os.getenv("OPENAIR_API_KEY")
 instance = AirService()
 
-DAYS_TO_HARVEST = 1
+DAYS_TO_HARVEST = 10
 CHUNK_SIZE_DAYS = 30
 
 NCR_COORDS = {
