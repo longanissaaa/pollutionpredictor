@@ -53,17 +53,36 @@ def prepare_data(df, is_training=True, historical_values=None, mode="sprinter"):
             df['pm25_rolling_3h'] = historical_values['rolling_3h']
             
         feature_cols = [
-            'temp', 'humidity', 'wind_speed', 'precipitation', 'wind_x', 'wind_y', 
-            'rain_washout', 'stagnation_idx', 'month', 'hour', 'day_of_week', 
-            'pm25_lag_24', 'pm25_rolling_3h'
+            'temp',
+            'humidity',
+            'wind_speed',
+            'precipitation',
+            'wind_x',
+            'wind_y', 
+            'rain_washout',
+            'stagnation_idx',
+            'month',
+            'hour',
+            'day_of_week', 
+            'pm25_lag_24',
+            'pm25_rolling_3h'
         ]
     else:
         if is_training:
             df = df.dropna(subset=['pm25_lag_24'])
             
         feature_cols = [
-            'temp', 'humidity', 'wind_speed', 'precipitation', 'wind_x', 'wind_y', 
-            'rain_washout', 'stagnation_idx', 'month', 'hour', 'day_of_week', 
+            'temp',
+            'humidity',
+            'wind_speed',
+            'precipitation',
+            'wind_x',
+            'wind_y', 
+            'rain_washout',
+            'stagnation_idx',
+            'month',
+            'hour',
+            'day_of_week', 
             'pm25_lag_24'
         ]
 

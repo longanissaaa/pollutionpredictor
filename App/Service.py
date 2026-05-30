@@ -92,7 +92,17 @@ class AirService:
         file_path = "pollution_data.csv"
         file_exist = os.path.isfile(file_path)
         
-        fieldnames = ['timestamp', 'city', 'aqi', 'pm2_5', 'pm10', 'temp', 'humidity', 'wind_speed',"no2","o3"]
+        fieldnames = ['timestamp',
+                      'city',
+                      'aqi',
+                      'pm2_5',
+                      'pm10',
+                      'temp',
+                      'humidity',
+                      'wind_speed',
+                      "no2",
+                      "o3"
+                      ]
 
         with open(file_path, "a", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)

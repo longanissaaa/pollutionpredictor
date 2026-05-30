@@ -48,34 +48,79 @@ app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'FileSystemCache', 'CACHE_DIR': '/tmp'})
 
 HEALTH_RECS = { 
-    1: {"color": "#28a745", "bg": "#eafaf1", "status": "GOOD", "desc": "Perfect conditions. Safe for all outdoor activities.", 
-        "exercise": "Enjoy outdoor exercise", "window": "Open windows for fresh air", "mask": "No mask needed", "purifier": "Not required"},
+    1: {"color": "#28a745",
+        "bg": "#eafaf1",
+        "status": "GOOD",
+        "desc": "Perfect conditions. Safe for all outdoor activities.", 
+        "exercise": "Enjoy outdoor exercise",
+        "window": "Open windows for fresh air",
+        "mask": "No mask needed",
+        "purifier": "Not required"},
     
-    2: {"color": "#ffc107", "bg": "#fff9e6", "status": "MODERATE", "desc": "Generally acceptable. Sensitive groups should monitor symptoms.", 
-        "exercise": "Outdoor exercise is fine", "window": "Keep windows open", "mask": "Mask only if sensitive", "purifier": "Optional"},
+    2: {"color": "#ffc107",
+        "bg": "#fff9e6",
+        "status": "MODERATE",
+        "desc": "Generally acceptable. Sensitive groups should monitor symptoms.", 
+        "exercise": "Outdoor exercise is fine",
+        "window": "Keep windows open",
+        "mask": "Mask only if sensitive",
+        "purifier": "Optional"},
     
-    3: {"color": "#fd7e14", "bg": "#fff2e6", "status": "SENSITIVE", "desc": "Sensitive groups should reduce outdoor time.", 
-        "exercise": "Reduce intense outdoor exercise", "window": "Close windows near traffic", "mask": "Wear mask if sensitive", "purifier": "Consider a purifier"},
+    3: {"color": "#fd7e14",
+        "bg": "#fff2e6",
+        "status": "SENSITIVE",
+        "desc": "Sensitive groups should reduce outdoor time.", 
+        "exercise": "Reduce intense outdoor exercise",
+        "window": "Close windows near traffic",
+        "mask": "Wear mask if sensitive",
+        "purifier": "Consider a purifier"},
     
-    4: {"color": "#dc3545", "bg": "#fdf2e6", "status": "UNHEALTHY", "desc": "Everyone may begin to feel health effects.", 
-        "exercise": "Avoid outdoor exercise", "window": "Keep windows closed", "mask": "Wear a mask outdoors", "purifier": "Run a purifier"},
+    4: {"color": "#dc3545",
+        "bg": "#fdf2e6",
+        "status": "UNHEALTHY",
+        "desc": "Everyone may begin to feel health effects.", 
+        "exercise": "Avoid outdoor exercise",
+        "window": "Keep windows closed",
+        "mask": "Wear a mask outdoors",
+        "purifier": "Run a purifier"},
     
-    5: {"color": "#6f42c1", "bg": "#f5f0ff", "status": "VERY UNHEALTHY", "desc": "Health warnings for the entire population.", 
-        "exercise": "Strictly avoid outdoors", "window": "Seal windows tightly", "mask": "N95 mask mandatory", "purifier": "Run on maximum"},
+    5: {"color": "#6f42c1",
+        "bg": "#f5f0ff",
+        "status": "VERY UNHEALTHY",
+        "desc": "Health warnings for the entire population.", 
+        "exercise": "Strictly avoid outdoors",
+        "window": "Seal windows tightly",
+        "mask": "N95 mask mandatory",
+        "purifier": "Run on maximum"},
     
-    6: {"color": "#800000", "bg": "#f2d9d9", "status": "HAZARDOUS", "desc": "Emergency condition. Stay indoors and seal all air gaps.", 
-        "exercise": "DANGER: Stay inside", "window": "DO NOT open windows", "mask": "N95 mask critical", "purifier": "Run on maximum"}
+    6: {"color": "#800000",
+        "bg": "#f2d9d9",
+        "status": "HAZARDOUS",
+        "desc": "Emergency condition. Stay indoors and seal all air gaps.", 
+        "exercise": "DANGER: Stay inside",
+        "window": "DO NOT open windows",
+        "mask": "N95 mask critical",
+        "purifier": "Run on maximum"}
 }
 
 NCR_COORDS = {
-    "Caloocan": (14.6504, 120.9715), "Las Piñas": (14.4445, 120.9939),
-    "Makati City": (14.5547, 121.0244), "Malabon City": (14.6628, 120.9573),
-    "Mandaluyong City": (14.5794, 121.0359), "Manila": (14.5995, 120.9842),
-    "Marikina City": (14.6507, 121.1029), "Muntinlupa City": (14.4081, 121.0415),
-    "Navotas City": (14.6715, 120.9436), "Parañaque City": (14.4793, 121.0198),
-    "Pasay City": (14.5378, 121.0014), "Pasig City": (14.5764, 121.0851),
-    "Quezon City": (14.6760, 121.0437), "San Juan City": (14.6042, 121.0300),
-    "Taguig City": (14.5176, 121.0509), "Valenzuela City": (14.7011, 120.9830), "Pateros" : (14.5484,121.0708)
+    "Caloocan":         (14.6504, 120.9715),
+    "Las Piñas":        (14.4445, 120.9939),
+    "Makati City":      (14.5547, 121.0244),
+    "Malabon City":     (14.6628, 120.9573),
+    "Mandaluyong City": (14.5794, 121.0359),
+    "Manila":           (14.5995, 120.9842),
+    "Marikina City":    (14.6507, 121.1029),
+    "Muntinlupa City":  (14.4081, 121.0415),
+    "Navotas City":     (14.6715, 120.9436),
+    "Parañaque City":   (14.4793, 121.0198),
+    "Pasay City":       (14.5378, 121.0014),
+    "Pasig City":       (14.5764, 121.0851),
+    "Quezon City":      (14.6760, 121.0437),
+    "San Juan City":    (14.6042, 121.0300),
+    "Taguig City":      (14.5176, 121.0509),
+    "Valenzuela City":  (14.7011, 120.9830),
+    "Pateros" :         (14.5484, 121.0708)
 }
 
 # ==========================================
@@ -230,8 +275,10 @@ def live_data():
             "wind_direction": weather_stats.get('wind_direction', 0) if weather_stats else 0,
             "precipitation": weather_stats.get('precipitation', 0) if weather_stats else 0,
             "aqi": current_aqi,
-            "pm25": components.get('pm2_5', 0), "pm10": components.get('pm10', 0),
-            "no2": components.get('no2', 0), "o3": components.get('o3', 0),
+            "pm25": components.get('pm2_5', 0),
+            "pm10": components.get('pm10', 0),
+            "no2": components.get('no2', 0),
+            "o3": components.get('o3', 0),
             "primary_pollutant": names[worst_key],
             "trend": trend, "trend_icon": trend_icon,
             "timestamp": current_time_str,
@@ -241,12 +288,15 @@ def live_data():
         
         log_row = {
             'timestamp': datetime.fromtimestamp(pollution_info.get('dt')).strftime('%Y-%m-%d %H:%M:%S'),
-            'city': city_name, 'aqi': current_aqi,
-            'pm2_5': components.get('pm2_5'), 'pm10': components.get('pm10'),
+            'city': city_name,
+            'aqi': current_aqi,
+            'pm2_5': components.get('pm2_5'),
+            'pm10': components.get('pm10'),
             'temp': weather_stats.get('temp') if weather_stats else None,
             'humidity': weather_stats.get('humidity') if weather_stats else None,
             'wind_speed': weather_stats.get('wind_speed') if weather_stats else None,
-            'no2': components.get('no2'), 'o3': components.get('o3'),
+            'no2': components.get('no2'),
+            'o3': components.get('o3'),
         }
         
         return city_payload, log_row
@@ -438,7 +488,6 @@ def predict():
         prediction_alert = f"Optimal: Air quality is expected to remain {status} for the next 24 hours."
 
     yesterday_pm25, last_year_pm25 = get_historical_baselines(official_name, future_weather)
-    
     
     return jsonify({
         'prediction': my_model_forecast[0],

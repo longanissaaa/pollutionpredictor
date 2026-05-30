@@ -1,301 +1,1008 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8" />
+    <head>
+        <meta charset="UTF-8" />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />    
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>NCR Air Quality Dashboard</title>
+        <title>NCR Air Quality Dashboard</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
-    
-    <!-- Load Chart.js  -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-    
-    <!-- 3. Leaflet & Map Scripts -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/spatialsparks/Leaflet.idw@master/src/leaflet-idw.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-</head>
-<body>
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='css/style.css') }}"
+        />
 
-    <!-- Initial Loading Screen -->
-    <div id="app-loader">
-        <div class="spinner"></div>
-        <div>Initializing Command Center...</div>
-        <div style="font-size: 0.5em; color: #666; margin-top: 10px;">Pinging 16 NCR cities via satellite. This takes ~5 seconds.</div>
-    </div>
+        <!-- Load Chart.js  -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <div class="header-container" style="margin-bottom: 15px;">
-        <h1 style="color: #2c3e50; margin: 0;">Air Quality Command Center</h1>
-        <p style="color: #6c757d; margin-top: 5px;">Select a city on the map to view live analytics.</p>
-    </div>
+        <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
 
-    <!-- MASTER-DETAIL SPA LAYOUT -->
-    <div class="spa-layout">
-        
-        <!-- LEFT COLUMN: THE MAP & LEADERBOARD -->
-        <div class="map-column">
-            <button onclick="toggleHeatmap()" class="heatmap-btn">Toggle Heatmap</button>
-            <div id="pollution-map" style="height: 500px; border-radius: 12px; overflow: hidden;"></div>
-
-            <!-- Leaderboard Section -->
-            <div id="ncr-leaderboard" class="card" style="margin-top: 20px; padding: 20px; border-top: 5px solid #2c3e50;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <!-- Cleanest Cities Stack -->
-                    <div>
-                        <h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">Top Cleanest</h4>
-                        <div id="top-clean" style="display: flex; flex-direction: column; gap: 10px;"></div>
-                    </div>
-                    <!-- Polluted Cities Stack -->
-                    <div style="border-left: 1px solid #eee; padding-left: 20px;">
-                        <h4 style="margin: 0 0 15px 0; color: #dc3545; font-size: 0.8em; text-transform: uppercase; letter-spacing: 1px;">Highest AQI</h4>
-                        <div id="top-polluted" style="display: flex; flex-direction: column; gap: 10px;"></div>
-                    </div>
-                </div>
+        <!-- 3. Leaflet & Map Scripts -->
+        <link
+            rel="stylesheet"
+            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+        <script src="https://cdn.jsdelivr.net/gh/spatialsparks/Leaflet.idw@master/src/leaflet-idw.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    </head>
+    <body>
+        <!-- Initial Loading Screen -->
+        <div id="app-loader">
+            <div class="spinner"></div>
+            <div>Initializing Command Center...</div>
+            <div style="font-size: 0.5em; color: #666; margin-top: 10px">
+                Pinging 16 NCR cities via satellite. This takes ~5 seconds.
             </div>
         </div>
 
-        <!-- RIGHT COLUMN: THE DATA -->
-        <div class="data-column" id="dashboard-content" style="opacity: 0; transition: opacity 0.5s ease;">
-            
-            <div class="tab-container">
-                <button class="tab-btn active" onclick="switchTab('current-section', this)">Live Conditions</button>
-                <button class="tab-btn" onclick="switchTab('predict-section', this)">24H Predictive Engine</button>
-            </div>
+        <div class="header-container" style="margin-bottom: 15px">
+            <h1 style="color: #2c3e50; margin: 0">
+                Air Quality Command Center
+            </h1>
+            <p style="color: #6c757d; margin-top: 5px">
+                Select a city on the map to view live analytics.
+            </p>
+        </div>
 
-            <!-- CURRENT SECTION -->
-            <div id="current-section" class="tab-content active card" style="border-top: 8px solid #ccc; transition: border-color 0.3s ease;">
-                
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px;">
-                    <h2 class="section-title" style="margin: 0;" id="dom-city-name">--</h2>
-                    <span style="font-size: 0.85em; color: #adb1b4; background: #eee; padding: 4px 10px; border-radius: 20px;">
-                        ⏱️ Updated: <span id="dom-timestamp">--</span>
-                    </span>
-                </div>
+        <!-- MASTER-DETAIL SPA LAYOUT -->
+        <div class="spa-layout">
+            <!-- LEFT COLUMN: THE MAP & LEADERBOARD -->
+            <div class="map-column">
+                <button onclick="toggleHeatmap()" class="heatmap-btn">
+                    Toggle Heatmap
+                </button>
+                <div
+                    id="pollution-map"
+                    style="height: 500px; border-radius: 12px; overflow: hidden"
+                ></div>
 
-                <div class="current-weather-banner">
-                    <div class="weather-stats-group" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
-                        <div><strong>Temp:</strong> <span id="dom-temp">--</span>°C</div>
-                        <div><strong>Humidity:</strong> <span id="dom-humidity">--</span>%</div>
-                        <div>🌧️ <span id="dom-precip">--</span> mm</div>
-                        <div style="display: flex; align-items: center; gap: 8px">
-                            🧭 <strong>Wind:</strong> <span id="dom-wind">--</span> m/s
-                            <span id="dom-wind-arrow" style="display: inline-block; transition: transform 0.6s ease;">⬇️</span>
+                <!-- Leaderboard Section -->
+                <div
+                    id="ncr-leaderboard"
+                    class="card"
+                    style="
+                        margin-top: 20px;
+                        padding: 20px;
+                        border-top: 5px solid #2c3e50;
+                    "
+                >
+                    <div
+                        style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 20px;
+                        "
+                    >
+                        <!-- Cleanest Cities Stack -->
+                        <div>
+                            <h4
+                                style="
+                                    margin: 0 0 15px 0;
+                                    color: #28a745;
+                                    font-size: 0.8em;
+                                    text-transform: uppercase;
+                                    letter-spacing: 1px;
+                                "
+                            >
+                                Top Cleanest
+                            </h4>
+                            <div
+                                id="top-clean"
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 10px;
+                                "
+                            ></div>
+                        </div>
+                        <!-- Polluted Cities Stack -->
+                        <div
+                            style="
+                                border-left: 1px solid #eee;
+                                padding-left: 20px;
+                            "
+                        >
+                            <h4
+                                style="
+                                    margin: 0 0 15px 0;
+                                    color: #dc3545;
+                                    font-size: 0.8em;
+                                    text-transform: uppercase;
+                                    letter-spacing: 1px;
+                                "
+                            >
+                                Highest AQI
+                            </h4>
+                            <div
+                                id="top-polluted"
+                                style="
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 10px;
+                                "
+                            ></div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Overall AQI Box -->
-                    <div id="dom-aqi-box" style="display: flex; align-items: center; justify-content: space-between; padding: 20px; background-color: #f8f9fa; border-radius: 12px; border-left: 8px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%;">
-                        <div style="flex: 1; padding-right: 20px;">
-                            <div style="font-size: 1.05em; line-height: 1.4;">
-                                <span id="dom-health-status" style="font-weight: bold; margin-right: 5px;">--</span>
-                                <span id="dom-health-desc">--</span>
+            <!-- RIGHT COLUMN: THE DATA -->
+            <div
+                class="data-column"
+                id="dashboard-content"
+                style="opacity: 0; transition: opacity 0.5s ease"
+            >
+                <div class="tab-container">
+                    <button
+                        class="tab-btn active"
+                        onclick="switchTab('current-section', this)"
+                    >
+                        Live Conditions
+                    </button>
+                    <button
+                        class="tab-btn"
+                        onclick="switchTab('predict-section', this)"
+                    >
+                        24H Predictive Engine
+                    </button>
+                </div>
+
+                <!-- CURRENT SECTION -->
+                <div
+                    id="current-section"
+                    class="tab-content active card"
+                    style="
+                        border-top: 8px solid #ccc;
+                        transition: border-color 0.3s ease;
+                    "
+                >
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: baseline;
+                            margin-bottom: 20px;
+                        "
+                    >
+                        <h2
+                            class="section-title"
+                            style="margin: 0"
+                            id="dom-city-name"
+                        >
+                            --
+                        </h2>
+                        <span
+                            style="
+                                font-size: 0.85em;
+                                color: #adb1b4;
+                                background: #eee;
+                                padding: 4px 10px;
+                                border-radius: 20px;
+                            "
+                        >
+                            ⏱️ Updated: <span id="dom-timestamp">--</span>
+                        </span>
+                    </div>
+
+                    <div class="current-weather-banner">
+                        <div
+                            class="weather-stats-group"
+                            style="
+                                display: flex;
+                                flex-wrap: wrap;
+                                gap: 20px;
+                                margin-bottom: 20px;
+                            "
+                        >
+                            <div>
+                                <strong>Temp:</strong>
+                                <span id="dom-temp">--</span>°C
+                            </div>
+                            <div>
+                                <strong>Humidity:</strong>
+                                <span id="dom-humidity">--</span>%
+                            </div>
+                            <div>🌧️ <span id="dom-precip">--</span> mm</div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                "
+                            >
+                                🧭 <strong>Wind:</strong>
+                                <span id="dom-wind">--</span> m/s
+                                <span
+                                    id="dom-wind-arrow"
+                                    style="
+                                        display: inline-block;
+                                        transition: transform 0.6s ease;
+                                    "
+                                    >⬇️</span
+                                >
                             </div>
                         </div>
 
-                        <div style="text-align: right; border-left: 1px solid #dee2e6; padding-left: 20px; display: flex; flex-direction: column; justify-content: center; align-items: flex-end;">
-                            <div style="font-size: 0.7em; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 1px;">
-                                Overall AQI <span id="dom-trend-text" style="margin-left: 5px;">--</span>
+                        <!-- Overall AQI Box -->
+                        <div
+                            id="dom-aqi-box"
+                            style="
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                padding: 20px;
+                                background-color: #f8f9fa;
+                                border-radius: 12px;
+                                border-left: 8px solid #ccc;
+                                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                                width: 100%;
+                            "
+                        >
+                            <div style="flex: 1; padding-right: 20px">
+                                <div
+                                    style="font-size: 1.05em; line-height: 1.4"
+                                >
+                                    <span
+                                        id="dom-health-status"
+                                        style="
+                                            font-weight: bold;
+                                            margin-right: 5px;
+                                        "
+                                        >--</span
+                                    >
+                                    <span id="dom-health-desc">--</span>
+                                </div>
                             </div>
-                            <div id="dom-aqi-number" style="font-size: 2.8em; font-weight: 900; line-height: 1; margin-top: 2px;">
+
+                            <div
+                                style="
+                                    text-align: right;
+                                    border-left: 1px solid #dee2e6;
+                                    padding-left: 20px;
+                                    display: flex;
+                                    flex-direction: column;
+                                    justify-content: center;
+                                    align-items: flex-end;
+                                "
+                            >
+                                <div
+                                    style="
+                                        font-size: 0.7em;
+                                        font-weight: 700;
+                                        color: #6c757d;
+                                        text-transform: uppercase;
+                                        letter-spacing: 1px;
+                                    "
+                                >
+                                    Overall AQI
+                                    <span
+                                        id="dom-trend-text"
+                                        style="margin-left: 5px"
+                                        >--</span
+                                    >
+                                </div>
+                                <div
+                                    id="dom-aqi-number"
+                                    style="
+                                        font-size: 2.8em;
+                                        font-weight: 900;
+                                        line-height: 1;
+                                        margin-top: 2px;
+                                    "
+                                >
                                     --
                                 </div>
-                            <div id="dom-primary-badge" style="margin-top: 10px; font-size: 0.75em; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px;">
-                                <span style="font-size: 1.2em;">⚠️</span> Primary: <span id="dom-primary-val">--</span>
+                                <div
+                                    id="dom-primary-badge"
+                                    style="
+                                        margin-top: 10px;
+                                        font-size: 0.75em;
+                                        font-weight: 700;
+                                        padding: 4px 10px;
+                                        border-radius: 6px;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                    "
+                                >
+                                    <span style="font-size: 1.2em">⚠️</span>
+                                    Primary:
+                                    <span id="dom-primary-val">--</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- AQI Gradient Scale -->
-                    <div class="aqi-scale-wrapper" style="margin-top: 20px;">
-                        <div class="aqi-scale-title">Current Risk Level</div>
-                        <div class="aqi-gradient-track">
-                            <div id="dom-aqi-pin" class="aqi-marker" style="left: 10%; background-color: #ccc;"></div>
-                        </div>
-                        <div class="aqi-labels">
-                            <span>Good</span><span>Moderate</span><span>Sensitive</span>
-                            <span>Unhealthy</span><span>Very Unhealthy</span><span>Hazardous</span>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Insight -->
-                <div style="background: rgba(255,255,255,0.6); padding: 10px 15px; border-radius: 8px; font-size: 0.85em; color: #495057; border-left: 3px solid #007bff; display: inline-block; margin: 20px 0;">
-                    <strong>Insight:</strong> <span id="dom-weather-insight">Analyzing weather patterns...</span>
-                </div>
-
-                <!-- Pollutant Breakdown Header & Toggles -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 15px;">
-                <h3 style="margin: 0;">Pollutant Breakdown</h3>
-                <div style="background: #f0f4f8; padding: 4px; border-radius: 8px; display: flex; gap: 5px;">
-                    <button id="btn-view-bars" onclick="toggleBreakdown('bars')" class="tab-btn active" style="padding: 4px 12px; font-size: 0.85em; border-radius: 6px; border: none; cursor: pointer;">📊 Bars</button>
-                    <button id="btn-view-pie" onclick="toggleBreakdown('pie')" class="tab-btn" style="padding: 4px 12px; font-size: 0.85em; border-radius: 6px; border: none; cursor: pointer; background: transparent;">🍩 Pie</button>
-                </div>
-            </div>
-
-                <!--  The Progress Bars -->
-                <div id="view-container-bars" class="info-grid" style="display: grid;">
-                    <div class="info-card">
-                        <h4>PM2.5 <span class="val-badge" id="dom-pm25">--</span></h4>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-pm25"></div></div>
-                        <p>Fine Particulate. Safe limit: 25 µg/m³</p>
-                    </div>
-                    <div class="info-card">
-                        <h4>PM10 <span class="val-badge" id="dom-pm10">--</span></h4>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-pm10"></div></div>
-                        <p>Coarse Particulate. Safe limit: 50 µg/m³</p>
-                    </div>
-                    <div class="info-card">
-                        <h4>NO2 <span class="val-badge" id="dom-no2">--</span></h4>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-no2"></div></div>
-                        <p>Nitrogen Dioxide. Safe limit: 25 µg/m³</p>
-                    </div>
-                    <div class="info-card">
-                        <h4>O3 <span class="val-badge" id="dom-o3">--</span></h4>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-o3"></div></div>
-                        <p>Ground Ozone. Safe limit: 100 µg/m³</p>
-                    </div>
-                </div>
-
-                <div id="view-container-pie" class="card" style="display: none; padding: 20px;">
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; align-items: center;">
-                        <!-- The Chart -->
-                        <div style="height: 250px; position: relative;">
-                            <canvas id="breakdownChart"></canvas>
-                            <div id="chart-center-label" style="position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none;">
-                                <span style="font-size: 0.65em; color: #666; display: block; text-transform: uppercase; font-weight: 800; letter-spacing: 1px;">
-                                    Final Verdict
-                                </span>
-                                <strong id="dom-pie-total" style="font-size: 2.2em; line-height: 1; display: block; margin: 2px 0;">
-                                    0
-                                </strong>
-                                <span style="font-size: 0.7em; color: #999; font-weight: 600;">MAX AQI</span>
+                        <!-- AQI Gradient Scale -->
+                        <div class="aqi-scale-wrapper" style="margin-top: 20px">
+                            <div class="aqi-scale-title">
+                                Current Risk Level
                             </div>
-                        </div>
-                
-                        <!-- Dynamic Info Panel -->
-                        <div id="pollutant-analysis-panel" style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #6c757d;">
-                            <h4 id="dom-analysis-title" style="margin: 0 0 8px 0; color: #2c3e50;">Analyzing...</h4>
-                            <p id="dom-analysis-body" style="font-size: 0.85em; color: #495057; line-height: 1.5; margin: 0;">
-                                Select a city to see the primary pollution driver.
-                            </p>
-                            <hr style="margin: 12px 0; border: 0; border-top: 1px solid #dee2e6;">
-                            <div id="dom-analysis-source" style="font-size: 0.75em; font-weight: 700; color: #6c757d; text-transform: uppercase;">
-                                Primary Source: --
+                            <div class="aqi-gradient-track">
+                                <div
+                                    id="dom-aqi-pin"
+                                    class="aqi-marker"
+                                    style="left: 10%; background-color: #ccc"
+                                ></div>
+                            </div>
+                            <div class="aqi-labels">
+                                <span>Good</span><span>Moderate</span
+                                ><span>Sensitive</span> <span>Unhealthy</span
+                                ><span>Very Unhealthy</span
+                                ><span>Hazardous</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Mini Source Legend -->
-                    <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-top: 1px solid #eee; padding-top: 15px;">
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7em;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: #6f42c1;"></span>
-                            <strong>Diesel/Jeepneys</strong> (PM2.5)
+                    <!-- Insight -->
+                    <div
+                        style="
+                            background: rgba(255, 255, 255, 0.6);
+                            padding: 10px 15px;
+                            border-radius: 8px;
+                            font-size: 0.85em;
+                            color: #495057;
+                            border-left: 3px solid #007bff;
+                            display: inline-block;
+                            margin: 20px 0;
+                        "
+                    >
+                        <strong>Insight:</strong>
+                        <span id="dom-weather-insight"
+                            >Analyzing weather patterns...</span
+                        >
+                    </div>
+
+                    <!-- Pollutant Breakdown Header & Toggles -->
+                    <div
+                        style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-end;
+                            margin-bottom: 15px;
+                        "
+                    >
+                        <h3 style="margin: 0">Pollutant Breakdown</h3>
+                        <div
+                            style="
+                                background: #f0f4f8;
+                                padding: 4px;
+                                border-radius: 8px;
+                                display: flex;
+                                gap: 5px;
+                            "
+                        >
+                            <button
+                                id="btn-view-bars"
+                                onclick="toggleBreakdown('bars')"
+                                class="tab-btn active"
+                                style="
+                                    padding: 4px 12px;
+                                    font-size: 0.85em;
+                                    border-radius: 6px;
+                                    border: none;
+                                    cursor: pointer;
+                                "
+                            >
+                                📊 Bars
+                            </button>
+                            <button
+                                id="btn-view-pie"
+                                onclick="toggleBreakdown('pie')"
+                                class="tab-btn"
+                                style="
+                                    padding: 4px 12px;
+                                    font-size: 0.85em;
+                                    border-radius: 6px;
+                                    border: none;
+                                    cursor: pointer;
+                                    background: transparent;
+                                "
+                            >
+                                🍩 Pie
+                            </button>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7em;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: #007bff;"></span>
-                            <strong>Road Traffic</strong> (NO₂)
+                    </div>
+
+                    <!--  The Progress Bars -->
+                    <div
+                        id="view-container-bars"
+                        class="info-grid"
+                        style="display: grid"
+                    >
+                        <div class="info-card">
+                            <h4>
+                                PM2.5
+                                <span class="val-badge" id="dom-pm25">--</span>
+                            </h4>
+                            <div class="progress-bar-bg">
+                                <div
+                                    class="progress-bar-fill"
+                                    id="bar-pm25"
+                                ></div>
+                            </div>
+                            <p>Fine Particulate. Safe limit: 25 µg/m³</p>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7em;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: #adb5bd;"></span>
-                            <strong>Construction</strong> (PM10)
+                        <div class="info-card">
+                            <h4>
+                                PM10
+                                <span class="val-badge" id="dom-pm10">--</span>
+                            </h4>
+                            <div class="progress-bar-bg">
+                                <div
+                                    class="progress-bar-fill"
+                                    id="bar-pm10"
+                                ></div>
+                            </div>
+                            <p>Coarse Particulate. Safe limit: 50 µg/m³</p>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px; font-size: 0.7em;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: #fd7e14;"></span>
-                            <strong>Heat & Smog</strong> (O₃)
+                        <div class="info-card">
+                            <h4>
+                                NO2
+                                <span class="val-badge" id="dom-no2">--</span>
+                            </h4>
+                            <div class="progress-bar-bg">
+                                <div
+                                    class="progress-bar-fill"
+                                    id="bar-no2"
+                                ></div>
+                            </div>
+                            <p>Nitrogen Dioxide. Safe limit: 25 µg/m³</p>
+                        </div>
+                        <div class="info-card">
+                            <h4>
+                                O3 <span class="val-badge" id="dom-o3">--</span>
+                            </h4>
+                            <div class="progress-bar-bg">
+                                <div
+                                    class="progress-bar-fill"
+                                    id="bar-o3"
+                                ></div>
+                            </div>
+                            <p>Ground Ozone. Safe limit: 100 µg/m³</p>
+                        </div>
+                    </div>
+
+                    <div
+                        id="view-container-pie"
+                        class="card"
+                        style="display: none; padding: 20px"
+                    >
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1.2fr 1fr;
+                                gap: 20px;
+                                align-items: center;
+                            "
+                        >
+                            <!-- The Chart -->
+                            <div style="height: 250px; position: relative">
+                                <canvas id="breakdownChart"></canvas>
+                                <div
+                                    id="chart-center-label"
+                                    style="
+                                        position: absolute;
+                                        top: 52%;
+                                        left: 50%;
+                                        transform: translate(-50%, -50%);
+                                        text-align: center;
+                                        pointer-events: none;
+                                    "
+                                >
+                                    <span
+                                        style="
+                                            font-size: 0.65em;
+                                            color: #666;
+                                            display: block;
+                                            text-transform: uppercase;
+                                            font-weight: 800;
+                                            letter-spacing: 1px;
+                                        "
+                                    >
+                                        Final Verdict
+                                    </span>
+                                    <strong
+                                        id="dom-pie-total"
+                                        style="
+                                            font-size: 2.2em;
+                                            line-height: 1;
+                                            display: block;
+                                            margin: 2px 0;
+                                        "
+                                    >
+                                        0
+                                    </strong>
+                                    <span
+                                        style="
+                                            font-size: 0.7em;
+                                            color: #999;
+                                            font-weight: 600;
+                                        "
+                                        >MAX AQI</span
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Dynamic Info Panel -->
+                            <div
+                                id="pollutant-analysis-panel"
+                                style="
+                                    background: #f8f9fa;
+                                    padding: 15px;
+                                    border-radius: 10px;
+                                    border-left: 4px solid #6c757d;
+                                "
+                            >
+                                <h4
+                                    id="dom-analysis-title"
+                                    style="margin: 0 0 8px 0; color: #2c3e50"
+                                >
+                                    Analyzing...
+                                </h4>
+                                <p
+                                    id="dom-analysis-body"
+                                    style="
+                                        font-size: 0.85em;
+                                        color: #495057;
+                                        line-height: 1.5;
+                                        margin: 0;
+                                    "
+                                >
+                                    Select a city to see the primary pollution
+                                    driver.
+                                </p>
+                                <hr
+                                    style="
+                                        margin: 12px 0;
+                                        border: 0;
+                                        border-top: 1px solid #dee2e6;
+                                    "
+                                />
+                                <div
+                                    id="dom-analysis-source"
+                                    style="
+                                        font-size: 0.75em;
+                                        font-weight: 700;
+                                        color: #6c757d;
+                                        text-transform: uppercase;
+                                    "
+                                >
+                                    Primary Source: --
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mini Source Legend -->
+                        <div
+                            style="
+                                margin-top: 15px;
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 10px;
+                                border-top: 1px solid #eee;
+                                padding-top: 15px;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    font-size: 0.7em;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 50%;
+                                        background: #6f42c1;
+                                    "
+                                ></span>
+                                <strong>Diesel/Jeepneys</strong> (PM2.5)
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    font-size: 0.7em;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 50%;
+                                        background: #007bff;
+                                    "
+                                ></span>
+                                <strong>Road Traffic</strong> (NO₂)
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    font-size: 0.7em;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 50%;
+                                        background: #adb5bd;
+                                    "
+                                ></span>
+                                <strong>Construction</strong> (PM10)
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    font-size: 0.7em;
+                                "
+                            >
+                                <span
+                                    style="
+                                        width: 10px;
+                                        height: 10px;
+                                        border-radius: 50%;
+                                        background: #fd7e14;
+                                    "
+                                ></span>
+                                <strong>Heat & Smog</strong> (O₃)
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Health Recommendations List -->
+                    <h3
+                        style="
+                            margin-bottom: 15px;
+                            margin-top: 35px;
+                            font-weight: 700;
+                            color: #2c3e50;
+                        "
+                    >
+                        Health Recommendations
+                    </h3>
+                    <div class="recommendation-list-container">
+                        <div class="rec-list-item">
+                            <div class="rec-icon-box-sq dom-bg-color">
+                                <span style="font-size: 30px">🚵‍♂️</span>
+                            </div>
+                            <div class="rec-text-column">
+                                <p class="rec-main-text" id="rec-exercise">
+                                    --
+                                </p>
+                            </div>
+                        </div>
+                        <div class="rec-list-item">
+                            <div class="rec-icon-box-sq dom-bg-color">
+                                <span style="font-size: 30px">🪟</span>
+                            </div>
+                            <div class="rec-text-column">
+                                <p class="rec-main-text" id="rec-window">--</p>
+                            </div>
+                        </div>
+                        <div class="rec-list-item" id="row-mask">
+                            <div class="rec-icon-box-sq dom-bg-color">
+                                <span style="font-size: 30px">😷</span>
+                            </div>
+                            <div class="rec-text-column">
+                                <p class="rec-main-text" id="rec-mask">--</p>
+                            </div>
+                        </div>
+                        <div class="rec-list-item" id="row-purifier">
+                            <div class="rec-icon-box-sq dom-bg-color">
+                                <span style="font-size: 30px">🌬️</span>
+                            </div>
+                            <div class="rec-text-column">
+                                <p class="rec-main-text" id="rec-purifier">
+                                    --
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Section -->
+                    <div
+                        class="card"
+                        style="
+                            margin-top: 35px;
+                            border-top: 5px solid #6f42c1;
+                            padding: 20px;
+                        "
+                    >
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                margin-bottom: 20px;
+                            "
+                        >
+                            <h3
+                                style="
+                                    margin: 0;
+                                    color: #2c3e50;
+                                    font-weight: 700;
+                                "
+                            >
+                                Weekly and Monthly Summary
+                            </h3>
+                            <select
+                                id="hist-pol-select"
+                                style="
+                                    padding: 8px 12px;
+                                    border-radius: 8px;
+                                    border: 1px solid #ddd;
+                                    font-weight: bold;
+                                    cursor: pointer;
+                                "
+                                onchange="updateHistoryUI()"
+                            >
+                                <option value="pm2_5">PM2.5</option>
+                                <option value="pm10">PM10</option>
+                                <option value="no2">NO₂</option>
+                                <option value="o3">O₃</option>
+                            </select>
+                        </div>
+                        <div
+                            style="
+                                height: 300px;
+                                width: 100%;
+                                margin-bottom: 25px;
+                            "
+                        >
+                            <canvas id="summaryChart"></canvas>
+                        </div>
+                        <div
+                            class="insight-grid"
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 15px;
+                            "
+                        >
+                            <div
+                                id="weekly-card"
+                                style="
+                                    padding: 15px;
+                                    background: #fdfbff;
+                                    border-left: 4px solid #6f42c1;
+                                    border-radius: 8px;
+                                "
+                            >
+                                <h4
+                                    style="
+                                        margin: 0 0 5px 0;
+                                        font-size: 0.75em;
+                                        color: #6f42c1;
+                                        text-transform: uppercase;
+                                    "
+                                >
+                                    7-Day Insight
+                                </h4>
+                                <div
+                                    id="dom-weekly-avg"
+                                    style="font-size: 1.6em; font-weight: 800"
+                                >
+                                    --
+                                </div>
+                                <p
+                                    id="dom-weekly-insight"
+                                    style="
+                                        font-size: 0.85em;
+                                        color: #666;
+                                        margin-top: 8px;
+                                    "
+                                >
+                                    Analyzing recent trends...
+                                </p>
+                            </div>
+                            <div
+                                id="monthly-card"
+                                style="
+                                    padding: 15px;
+                                    background: #f8f9fa;
+                                    border-left: 4px solid #adb5bd;
+                                    border-radius: 8px;
+                                "
+                            >
+                                <h4
+                                    style="
+                                        margin: 0 0 5px 0;
+                                        font-size: 0.75em;
+                                        color: #6c757d;
+                                        text-transform: uppercase;
+                                    "
+                                >
+                                    30-Day Baseline
+                                </h4>
+                                <div
+                                    id="dom-monthly-avg"
+                                    style="font-size: 1.6em; font-weight: 800"
+                                >
+                                    --
+                                </div>
+                                <p
+                                    id="dom-monthly-insight"
+                                    style="
+                                        font-size: 0.85em;
+                                        color: #666;
+                                        margin-top: 8px;
+                                    "
+                                >
+                                    Analyzing monthly baseline...
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Health Recommendations List -->
-                <h3 style="margin-bottom: 15px; margin-top: 35px; font-weight: 700; color: #2c3e50;">Health Recommendations</h3>
-                <div class="recommendation-list-container">
-                    <div class="rec-list-item">
-                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🚵‍♂️</span></div>
-                        <div class="rec-text-column"><p class="rec-main-text" id="rec-exercise">--</p></div>
+                <!-- PREDICTIVE SECTION -->
+                <div
+                    id="predict-section"
+                    class="tab-content card"
+                    style="border-top: 5px solid #28a745"
+                >
+                    <h2 class="section-title">24-Hour Forward Forecast</h2>
+                    <div
+                        id="predict-alert-banner"
+                        style="
+                            display: none;
+                            padding: 15px;
+                            border-radius: 8px;
+                            margin-bottom: 20px;
+                            font-weight: bold;
+                            border-left: 6px solid;
+                        "
+                    ></div>
+                    <div id="loading" style="display: none; margin-top: 15px">
+                        Predicting...
                     </div>
-                    <div class="rec-list-item">
-                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🪟</span></div>
-                        <div class="rec-text-column"><p class="rec-main-text" id="rec-window">--</p></div>
-                    </div>
-                    <div class="rec-list-item" id="row-mask">
-                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">😷</span></div>
-                        <div class="rec-text-column"><p class="rec-main-text" id="rec-mask">--</p></div>
-                    </div>
-                    <div class="rec-list-item" id="row-purifier">
-                        <div class="rec-icon-box-sq dom-bg-color"><span style="font-size: 30px;">🌬️</span></div>
-                        <div class="rec-text-column"><p class="rec-main-text" id="rec-purifier">--</p></div>
-                    </div>
-                </div>
-
-                <!-- Summary Section -->
-                <div class="card" style="margin-top: 35px; border-top: 5px solid #6f42c1; padding: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="margin: 0; color: #2c3e50; font-weight: 700;">Weekly and Monthly Summary</h3>
-                        <select id="hist-pol-select" style="padding: 8px 12px; border-radius: 8px; border: 1px solid #ddd; font-weight: bold; cursor: pointer;" onchange="updateHistoryUI()">
-                            <option value="pm2_5">PM2.5</option><option value="pm10">PM10</option>
-                            <option value="no2">NO₂</option><option value="o3">O₃</option>
-                        </select>
-                    </div>
-                    <div style="height: 300px; width: 100%; margin-bottom: 25px;"><canvas id="summaryChart"></canvas></div>
-                    <div class="insight-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <div id="weekly-card" style="padding: 15px; background: #fdfbff; border-left: 4px solid #6f42c1; border-radius: 8px;">
-                            <h4 style="margin: 0 0 5px 0; font-size: 0.75em; color: #6f42c1; text-transform: uppercase;">7-Day Insight</h4>
-                            <div id="dom-weekly-avg" style="font-size: 1.6em; font-weight: 800;">--</div>
-                            <p id="dom-weekly-insight" style="font-size: 0.85em; color: #666; margin-top: 8px;">Analyzing recent trends...</p>
+                    <div
+                        id="prediction-results"
+                        style="display: none; text-align: center"
+                    >
+                        <h4
+                            style="
+                                margin: 0;
+                                color: #666;
+                                text-transform: uppercase;
+                                margin-top: 20px;
+                            "
+                        >
+                            Next Hour Expected PM2.5
+                        </h4>
+                        <h1
+                            id="next-hour-val"
+                            style="
+                                margin: 10px 0;
+                                font-size: 4em;
+                                color: #28a745;
+                            "
+                        >
+                            --
+                        </h1>
+                        <div
+                            id="dom-predict-reason"
+                            style="
+                                display: inline-block;
+                                padding: 6px 15px;
+                                background: #f0f4f8;
+                                border: 1px solid #d1d9e0;
+                                border-radius: 20px;
+                                font-size: 0.85em;
+                                font-weight: bold;
+                                margin-bottom: 10px;
+                            "
+                        >
+                            Primary Driver: Analyzing...
                         </div>
-                        <div id="monthly-card" style="padding: 15px; background: #f8f9fa; border-left: 4px solid #adb5bd; border-radius: 8px;">
-                            <h4 style="margin: 0 0 5px 0; font-size: 0.75em; color: #6c757d; text-transform: uppercase;">30-Day Baseline</h4>
-                            <div id="dom-monthly-avg" style="font-size: 1.6em; font-weight: 800;">--</div>
-                            <p id="dom-monthly-insight" style="font-size: 0.85em; color: #666; margin-top: 8px;">Analyzing monthly baseline...</p>
+                        <div
+                            style="height: 400px; width: 100%; margin-top: 30px"
+                        >
+                            <canvas id="predictionChart"></canvas>
+                        </div>
+                        <div
+                            id="custom-legend"
+                            style="
+                                display: flex;
+                                justify-content: center;
+                                gap: 20px;
+                                margin-top: 15px;
+                                font-size: 0.9em;
+                                color: #495057;
+                            "
+                        >
+                            <label
+                                style="
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 5px;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked
+                                    onchange="toggleDataset(0, this)"
+                                />
+                                <span
+                                    style="
+                                        display: inline-block;
+                                        width: 25px;
+                                        height: 10px;
+                                        background: rgba(255, 193, 7, 0.4);
+                                        border: 2px solid #ffc107;
+                                    "
+                                ></span>
+                                Predicted PM2.5
+                            </label>
+
+                            <label
+                                style="
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 5px;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked
+                                    onchange="toggleDataset(1, this)"
+                                />
+                                <span
+                                    style="
+                                        display: inline-block;
+                                        width: 25px;
+                                        height: 0;
+                                        border-top: 2px dashed #6c757d;
+                                    "
+                                ></span>
+                                Yesterday's Levels
+                            </label>
+
+                            <label
+                                style="
+                                    cursor: pointer;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 5px;
+                                "
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked
+                                    onchange="toggleDataset(2, this)"
+                                />
+                                <span
+                                    style="
+                                        display: inline-block;
+                                        width: 25px;
+                                        height: 0;
+                                        border-top: 2px dotted #17a2b8;
+                                    "
+                                ></span>
+                                This Day Last Year
+                            </label>
                         </div>
                     </div>
                 </div>
             </div>
+            <!-- End Data Column -->
+        </div>
+        <!-- End SPA Layout -->
 
-            <!-- PREDICTIVE SECTION -->
-            <div id="predict-section" class="tab-content card" style="border-top: 5px solid #28a745">
-                <h2 class="section-title">24-Hour Forward Forecast</h2>
-                <div id="predict-alert-banner" style="display: none; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; border-left: 6px solid;"></div>
-                <div id="loading" style="display: none; margin-top: 15px;">Predicting...</div>
-                <div id="prediction-results" style="display: none; text-align: center">
-                    <h4 style="margin: 0; color: #666; text-transform: uppercase; margin-top: 20px;">Next Hour Expected PM2.5</h4>
-                    <h1 id="next-hour-val" style="margin: 10px 0; font-size: 4em; color: #28a745">--</h1>
-                    <div id="dom-predict-reason" style="display: inline-block; padding: 6px 15px; background: #f0f4f8; border: 1px solid #d1d9e0; border-radius: 20px; font-size: 0.85em; font-weight: bold; margin-bottom: 10px;">
-                        Primary Driver: Analyzing...
-                    </div>
-                    <div style="height: 400px; width: 100%; margin-top: 30px"><canvas id="predictionChart"></canvas></div>
-                    <div id="custom-legend" style="display: flex; justify-content: center; gap: 20px; margin-top: 15px; font-size: 0.9em; color: #495057;">
-                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" checked onchange="toggleDataset(0, this)"> 
-                        <span style="display: inline-block; width: 25px; height: 10px; background: rgba(255, 193, 7, 0.4); border: 2px solid #ffc107;"></span>
-                        Predicted PM2.5
-                    </label>
-                    
-                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" checked onchange="toggleDataset(1, this)"> 
-                        <span style="display: inline-block; width: 25px; height: 0; border-top: 2px dashed #6c757d;"></span>
-                        Yesterday's Levels
-                    </label>
-
-                    <label style="cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <input type="checkbox" checked onchange="toggleDataset(2, this)"> 
-                        <span style="display: inline-block; width: 25px; height: 0; border-top: 2px dotted #17a2b8;"></span>
-                        This Day Last Year
-                    </label>
-                </div>
-                </div>
-            </div>
-
-        </div> <!-- End Data Column -->
-    </div> <!-- End SPA Layout -->
-
-    <!-- JavaScript Initialization -->
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
+        <!-- JavaScript Initialization -->
+        <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    </body>
 </html>

@@ -15,15 +15,23 @@ DAYS_TO_HARVEST = 10
 CHUNK_SIZE_DAYS = 30
 
 NCR_COORDS = {
-    "Caloocan": (14.6504, 120.9715), "Las Piñas": (14.4445, 120.9939),
-    "Makati City": (14.5547, 121.0244), "Malabon City": (14.6628, 120.9573),
-    "Mandaluyong City": (14.5794, 121.0359), "Manila": (14.5995, 120.9842),
-    "Marikina City": (14.6507, 121.1029), "Muntinlupa City": (14.4081, 121.0415),
-    "Navotas City": (14.6715, 120.9436), "Parañaque City": (14.4793, 121.0198),
-    "Pasay City": (14.5378, 121.0014), "Pasig City": (14.5764, 121.0851),
-    "Quezon City": (14.6760, 121.0437), "San Juan City": (14.6042, 121.0300),
-    "Taguig City": (14.5176, 121.0509), "Valenzuela City": (14.7011, 120.9830), 
-    "Pateros" : (14.5484,121.0708)
+    "Caloocan":         (14.6504, 120.9715),
+    "Las Piñas":        (14.4445, 120.9939),
+    "Makati City":      (14.5547, 121.0244),
+    "Malabon City":     (14.6628, 120.9573),
+    "Mandaluyong City": (14.5794, 121.0359),
+    "Manila":           (14.5995, 120.9842),
+    "Marikina City":    (14.6507, 121.1029),
+    "Muntinlupa City":  (14.4081, 121.0415),
+    "Navotas City":     (14.6715, 120.9436),
+    "Parañaque City":   (14.4793, 121.0198),
+    "Pasay City":       (14.5378, 121.0014),
+    "Pasig City":       (14.5764, 121.0851),
+    "Quezon City":      (14.6760, 121.0437),
+    "San Juan City":    (14.6042, 121.0300),
+    "Taguig City":      (14.5176, 121.0509),
+    "Valenzuela City":  (14.7011, 120.9830), 
+    "Pateros" :         (14.5484, 121.0708)
 }
 
 def get_pollution_history(lat, lon, start, end):
@@ -95,7 +103,7 @@ def harvest():
             start_date_str = datetime.fromtimestamp(chunk_start, tz=timezone.utc).strftime('%Y-%m-%d')
             end_date_str = datetime.fromtimestamp(chunk_end, tz=timezone.utc).strftime('%Y-%m-%d')
             
-            print(f"  -> Pulling {start_date_str} to {end_date_str}...", end=" ", flush=True)
+            print(f" -> Pulling {start_date_str} to {end_date_str}...", end=" ", flush=True)
             
             pollution = get_pollution_history(lat, lon, chunk_start, chunk_end)
             weather = get_weather_history(lat, lon, start_date_str, end_date_str)
